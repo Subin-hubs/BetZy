@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "222015053276",
+    "project_id": "betzy-73b0d",
+    "storage_bucket": "betzy-73b0d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:222015053276:android:055e23c62ada4885e54319",
+        "android_client_info": {
+          "package_name": "com.example.betting_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB0S2AHdMhzNXEH80QQgTe7XHi6mzNLhsg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -3,21 +3,21 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class FFCreatePage extends StatefulWidget {
-  const FFCreatePage({super.key});
+class PUBGCreatePage extends StatefulWidget {
+  const PUBGCreatePage({super.key});
 
   @override
-  State<FFCreatePage> createState() => _FFCreatePageState();
+  State<PUBGCreatePage> createState() => _PUBGCreatePageState();
 }
 
-class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderStateMixin {
+class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProviderStateMixin {
   // Dropdown selections
   String? selectedMode;
   String? selectedMap;
   String? selectedTeamSize;
-  String? selectedGunAttributes;
-  String? selectedUnlimitedItems;
-  String? selectedCharacterSkills;
+  String? selectedPerspective;
+  String? selectedWeatherMode;
+  String? selectedZoneMode;
 
   // Textfield controller for points
   TextEditingController pointsController = TextEditingController();
@@ -35,16 +35,20 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
 
   // Dropdown options
   final List<String> modes = [
-    "Clash Squad",
-    "Lone Wolf",
-    "Battle Royale",
+    "Classic",
+    "Arena",
+    "TDM",
   ];
 
   final Map<String, List<String>> mapsByMode = {
-    "Clash Squad": ["CS Academy", "Peak", "Mill", "Brasilia"],
-    "Lone Wolf": ["Lone Wolf Arena"],
-    "Battle Royale": ["Bermuda", "Purgatory", "Kalahari", "Alpine", "Nexterra"],
+    "Classic": ["Erangel", "Miramar", "Sanhok", "Vikendi", "Livik", "Karakin"],
+    "Arena": ["Arena Training", "Warehouse", "Ruins"],
+    "TDM": ["Hangar", "Library", "Town"],
   };
+
+  final List<String> perspectives = ["TPP", "FPP"];
+  final List<String> weatherModes = ["Clear", "Sunset", "Overcast", "Rain"];
+  final List<String> zoneModes = ["Normal", "Fast"];
 
   @override
   void initState() {
@@ -68,12 +72,10 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
 
   // Get team size options based on selected mode
   List<String> get teamSizeOptions {
-    if (selectedMode == "Clash Squad") {
-      return ["1v1", "2v2", "4v4"];
-    } else if (selectedMode == "Lone Wolf") {
-      return ["1v1", "2v2"];
-    } else if (selectedMode == "Battle Royale") {
+    if (selectedMode == "Classic") {
       return ["Solo", "Duo", "Squad"];
+    } else if (selectedMode == "Arena" || selectedMode == "TDM") {
+      return ["4v4", "8v8"];
     }
     return [];
   }
@@ -98,16 +100,16 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
       _showError("Please select team size");
       return;
     }
-    if (selectedGunAttributes == null) {
-      _showError("Please select Gun Attributes");
+    if (selectedPerspective == null) {
+      _showError("Please select perspective");
       return;
     }
-    if (selectedUnlimitedItems == null) {
-      _showError("Please select Unlimited Items");
+    if (selectedMode == "Classic" && selectedWeatherMode == null) {
+      _showError("Please select weather mode");
       return;
     }
-    if (selectedCharacterSkills == null) {
-      _showError("Please select Character Skills");
+    if (selectedMode == "Classic" && selectedZoneMode == null) {
+      _showError("Please select zone mode");
       return;
     }
     if (pointsController.text.trim().isEmpty) {
@@ -135,17 +137,17 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
           ? userDoc['name']
           : currentUser.displayName ?? 'Unknown User';
 
-      // Prepare match data - NOW INCLUDES GAME FIELD
+      // Prepare match data
       Map<String, dynamic> matchData = {
-        'game': 'Free Fire', // IMPORTANT: Game identifier
+        'game': 'PUBG',
         'mode': selectedMode,
         'map': selectedMap,
         'teamSize': selectedTeamSize,
-        'gunAttributes': selectedGunAttributes,
-        'unlimitedItems': selectedUnlimitedItems,
-        'characterSkills': selectedCharacterSkills,
+        'perspective': selectedPerspective,
+        'weatherMode': selectedWeatherMode ?? 'N/A',
+        'zoneMode': selectedZoneMode ?? 'N/A',
         'points': int.parse(pointsController.text.trim()),
-        'participants': [], // Initialize empty participants array
+        'participants': [],
         'createdBy': {
           'userId': currentUser.uid,
           'userName': userName,
@@ -156,14 +158,11 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
       };
 
       // Save to Firebase
-      DocumentReference matchRef = await _firestore
-          .collection('matches')
-          .add(matchData);
+      await _firestore.collection('matches').add(matchData);
 
       if (mounted) {
-        // Success with better feedback
         Fluttertoast.showToast(
-          msg: "🔥 Free Fire Match Created!",
+          msg: "🎯 PUBG Match Created!",
           toastLength: Toast.LENGTH_LONG,
           gravity: ToastGravity.BOTTOM,
           backgroundColor: const Color(0xFF10B981),
@@ -217,11 +216,11 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
-                      Navigator.pop(context); // Close dialog
-                      Navigator.pop(context); // Go back to home
+                      Navigator.pop(context);
+                      Navigator.pop(context);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFEF4444),
+                      backgroundColor: const Color(0xFFF59E0B),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -246,9 +245,9 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
           selectedMode = null;
           selectedMap = null;
           selectedTeamSize = null;
-          selectedGunAttributes = null;
-          selectedUnlimitedItems = null;
-          selectedCharacterSkills = null;
+          selectedPerspective = null;
+          selectedWeatherMode = null;
+          selectedZoneMode = null;
           pointsController.clear();
         });
       }
@@ -284,7 +283,7 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text(
-          "Create Free Fire Match",
+          "Create PUBG Match",
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 20,
@@ -312,12 +311,12 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                    colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
                   ),
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFEF4444).withOpacity(0.3),
+                      color: const Color(0xFFF59E0B).withOpacity(0.3),
                       blurRadius: 16,
                       offset: const Offset(0, 8),
                     ),
@@ -332,7 +331,7 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: const Text(
-                        "🔥",
+                        "🎯",
                         style: TextStyle(fontSize: 32),
                       ),
                     ),
@@ -342,7 +341,7 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            "Free Fire",
+                            "PUBG Mobile",
                             style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
@@ -351,7 +350,7 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
                           ),
                           SizedBox(height: 4),
                           Text(
-                            "Configure your custom match",
+                            "Configure your custom room",
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.white70,
@@ -379,7 +378,7 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
                 ),
               ),
 
-              // Map Selection (shown when mode is selected)
+              // Map Selection
               if (selectedMode != null && availableMaps.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 _buildCard(
@@ -420,39 +419,64 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
 
               const SizedBox(height: 16),
 
-              // Gun Attributes
+              // Perspective
               _buildCard(
-                title: "Gun Attributes",
-                icon: Icons.gps_fixed_rounded,
-                child: _buildYesNoButtons(
-                  value: selectedGunAttributes,
-                  onChanged: (v) => setState(() => selectedGunAttributes = v),
+                title: "Perspective",
+                icon: Icons.remove_red_eye_rounded,
+                child: Row(
+                  children: perspectives.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final perspective = entry.value;
+                    return Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          right: index < perspectives.length - 1 ? 10 : 0,
+                        ),
+                        child: _buildPerspectiveOption(perspective),
+                      ),
+                    );
+                  }).toList(),
                 ),
               ),
 
-              const SizedBox(height: 16),
-
-              // Unlimited Items
-              _buildCard(
-                title: "Unlimited Items",
-                icon: Icons.inventory_2_rounded,
-                child: _buildYesNoButtons(
-                  value: selectedUnlimitedItems,
-                  onChanged: (v) => setState(() => selectedUnlimitedItems = v),
+              // Weather Mode (only for Classic)
+              if (selectedMode == "Classic") ...[
+                const SizedBox(height: 16),
+                _buildCard(
+                  title: "Weather Mode",
+                  icon: Icons.wb_sunny_rounded,
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: weatherModes.map((weather) {
+                      return _buildWeatherChip(weather);
+                    }).toList(),
+                  ),
                 ),
-              ),
+              ],
 
-              const SizedBox(height: 16),
-
-              // Character Skills
-              _buildCard(
-                title: "Character Skills",
-                icon: Icons.auto_awesome_rounded,
-                child: _buildYesNoButtons(
-                  value: selectedCharacterSkills,
-                  onChanged: (v) => setState(() => selectedCharacterSkills = v),
+              // Zone Mode (only for Classic)
+              if (selectedMode == "Classic") ...[
+                const SizedBox(height: 16),
+                _buildCard(
+                  title: "Zone Mode",
+                  icon: Icons.speed_rounded,
+                  child: Row(
+                    children: zoneModes.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final zone = entry.value;
+                      return Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            right: index < zoneModes.length - 1 ? 10 : 0,
+                          ),
+                          child: _buildZoneOption(zone),
+                        ),
+                      );
+                    }).toList(),
+                  ),
                 ),
-              ),
+              ],
 
               const SizedBox(height: 16),
 
@@ -485,7 +509,7 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
                       ),
                       prefixIcon: Icon(
                         Icons.monetization_on_rounded,
-                        color: Color(0xFFEF4444),
+                        color: Color(0xFFF59E0B),
                       ),
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(
@@ -505,12 +529,12 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
                 height: 58,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                    colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
                   ),
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFEF4444).withOpacity(0.4),
+                      color: const Color(0xFFF59E0B).withOpacity(0.4),
                       blurRadius: 16,
                       offset: const Offset(0, 8),
                     ),
@@ -564,7 +588,6 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
     );
   }
 
-  // Card Wrapper
   Widget _buildCard({
     required String title,
     required IconData icon,
@@ -595,12 +618,12 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEF4444).withOpacity(0.1),
+                  color: const Color(0xFFF59E0B).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   icon,
-                  color: const Color(0xFFEF4444),
+                  color: const Color(0xFFF59E0B),
                   size: 22,
                 ),
               ),
@@ -622,25 +645,26 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
     );
   }
 
-  // Mode Chip
   Widget _buildModeChip(String mode) {
     final isSelected = selectedMode == mode;
     return InkWell(
       onTap: () {
         setState(() {
           selectedMode = mode;
-          selectedMap = null; // Reset map when mode changes
+          selectedMap = null;
           selectedTeamSize = null;
+          selectedWeatherMode = null;
+          selectedZoneMode = null;
         });
       },
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFEF4444) : const Color(0xFFF1F5F9),
+          color: isSelected ? const Color(0xFFF59E0B) : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? const Color(0xFFEF4444) : const Color(0xFFE2E8F0),
+            color: isSelected ? const Color(0xFFF59E0B) : const Color(0xFFE2E8F0),
             width: 2,
           ),
         ),
@@ -656,7 +680,6 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
     );
   }
 
-  // Map Chip
   Widget _buildMapChip(String map) {
     final isSelected = selectedMap == map;
     return InkWell(
@@ -695,17 +718,18 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
     );
   }
 
-  // Team Size Option
   Widget _buildTeamSizeOption(String size) {
     final isSelected = selectedTeamSize == size;
     IconData icon;
 
-    if (size == "Solo" || size == "1v1") {
+    if (size == "Solo") {
       icon = Icons.person_rounded;
-    } else if (size == "Duo" || size == "2v2") {
+    } else if (size == "Duo") {
       icon = Icons.people_rounded;
-    } else {
+    } else if (size == "Squad" || size == "4v4") {
       icon = Icons.groups_rounded;
+    } else {
+      icon = Icons.groups_3_rounded;
     }
 
     return InkWell(
@@ -715,16 +739,16 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFEF4444) : const Color(0xFFF1F5F9),
+          color: isSelected ? const Color(0xFFF59E0B) : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? const Color(0xFFEF4444) : const Color(0xFFE2E8F0),
+            color: isSelected ? const Color(0xFFF59E0B) : const Color(0xFFE2E8F0),
             width: 2,
           ),
           boxShadow: isSelected
               ? [
             BoxShadow(
-              color: const Color(0xFFEF4444).withOpacity(0.3),
+              color: const Color(0xFFF59E0B).withOpacity(0.3),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -753,71 +777,156 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
     );
   }
 
-  // Yes/No Buttons
-  Widget _buildYesNoButtons({
-    required String? value,
-    required Function(String?) onChanged,
-  }) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildYesNoOption(
-            label: "Yes",
-            icon: Icons.check_circle_rounded,
-            isSelected: value == "Yes",
-            onTap: () => onChanged("Yes"),
-            color: const Color(0xFF10B981),
+  Widget _buildPerspectiveOption(String perspective) {
+    final isSelected = selectedPerspective == perspective;
+    IconData icon = perspective == "TPP"
+        ? Icons.person_outline_rounded
+        : Icons.remove_red_eye_outlined;
+
+    return InkWell(
+      onTap: () => setState(() => selectedPerspective = perspective),
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF8B5CF6) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF8B5CF6) : const Color(0xFFE2E8F0),
+            width: 2,
           ),
+          boxShadow: isSelected
+              ? [
+            BoxShadow(
+              color: const Color(0xFF8B5CF6).withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ]
+              : null,
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildYesNoOption(
-            label: "No",
-            icon: Icons.cancel_rounded,
-            isSelected: value == "No",
-            onTap: () => onChanged("No"),
-            color: const Color(0xFFEF4444),
-          ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? Colors.white : const Color(0xFF64748B),
+              size: 36,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              perspective,
+              style: TextStyle(
+                color: isSelected ? Colors.white : const Color(0xFF1F2937),
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildYesNoOption({
-    required String label,
-    required IconData icon,
-    required bool isSelected,
-    required VoidCallback onTap,
-    required Color color,
-  }) {
+  Widget _buildWeatherChip(String weather) {
+    final isSelected = selectedWeatherMode == weather;
+    IconData icon;
+
+    switch (weather) {
+      case "Clear":
+        icon = Icons.wb_sunny_rounded;
+        break;
+      case "Sunset":
+        icon = Icons.wb_twilight_rounded;
+        break;
+      case "Overcast":
+        icon = Icons.cloud_rounded;
+        break;
+      case "Rain":
+        icon = Icons.water_drop_rounded;
+        break;
+      default:
+        icon = Icons.wb_sunny_rounded;
+    }
+
     return InkWell(
-      onTap: onTap,
+      onTap: () => setState(() => selectedWeatherMode = weather),
       borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(0.15) : const Color(0xFFF1F5F9),
+          color: isSelected ? const Color(0xFF06B6D4) : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? color : const Color(0xFFE2E8F0),
+            color: isSelected ? const Color(0xFF06B6D4) : const Color(0xFFE2E8F0),
             width: 2,
           ),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
-              color: isSelected ? color : const Color(0xFF64748B),
-              size: 22,
+              size: 18,
+              color: isSelected ? Colors.white : const Color(0xFF64748B),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Text(
-              label,
+              weather,
               style: TextStyle(
-                color: isSelected ? color : const Color(0xFF1F2937),
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                color: isSelected ? Colors.white : const Color(0xFF64748B),
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildZoneOption(String zone) {
+    final isSelected = selectedZoneMode == zone;
+    IconData icon = zone == "Normal"
+        ? Icons.speed_rounded
+        : Icons.bolt_rounded;
+
+    return InkWell(
+      onTap: () => setState(() => selectedZoneMode = zone),
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFEC4899) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? const Color(0xFFEC4899) : const Color(0xFFE2E8F0),
+            width: 2,
+          ),
+          boxShadow: isSelected
+              ? [
+            BoxShadow(
+              color: const Color(0xFFEC4899).withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ]
+              : null,
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? Colors.white : const Color(0xFF64748B),
+              size: 36,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              zone,
+              style: TextStyle(
+                color: isSelected ? Colors.white : const Color(0xFF1F2937),
+                fontWeight: FontWeight.bold,
                 fontSize: 16,
               ),
             ),

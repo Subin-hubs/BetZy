@@ -29,9 +29,9 @@ class _MainpageState extends State<Mainpage> {
   // ✅ Must have 5 screens to match 5 items (for style15)
   List<Widget> _buildScreens() {
     return [
-      Home_page(),
+      HomePage(),
       Leaderboard_Page(),
-      Create_Page(),
+      CreatePage(),
       Reedem_Page(),
       MorePage(),
     ];

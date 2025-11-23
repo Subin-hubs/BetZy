@@ -3,21 +3,21 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class FFCreatePage extends StatefulWidget {
-  const FFCreatePage({super.key});
+class EFootballCreatePage extends StatefulWidget {
+  const EFootballCreatePage({super.key});
 
   @override
-  State<FFCreatePage> createState() => _FFCreatePageState();
+  State<EFootballCreatePage> createState() => _EFootballCreatePageState();
 }
 
-class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderStateMixin {
+class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTickerProviderStateMixin {
   // Dropdown selections
   String? selectedMode;
-  String? selectedMap;
-  String? selectedTeamSize;
-  String? selectedGunAttributes;
-  String? selectedUnlimitedItems;
-  String? selectedCharacterSkills;
+  String? selectedMatchTime;
+  String? selectedDifficulty;
+  String? selectedStadium;
+  String? selectedWeather;
+  String? selectedTimeOfDay;
 
   // Textfield controller for points
   TextEditingController pointsController = TextEditingController();
@@ -35,16 +35,48 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
 
   // Dropdown options
   final List<String> modes = [
-    "Clash Squad",
-    "Lone Wolf",
-    "Battle Royale",
+    "1v1",
+    "2v2",
+    "3v3",
   ];
 
-  final Map<String, List<String>> mapsByMode = {
-    "Clash Squad": ["CS Academy", "Peak", "Mill", "Brasilia"],
-    "Lone Wolf": ["Lone Wolf Arena"],
-    "Battle Royale": ["Bermuda", "Purgatory", "Kalahari", "Alpine", "Nexterra"],
-  };
+  final List<String> matchTimes = [
+    "3 Minutes",
+    "5 Minutes",
+    "10 Minutes",
+    "Full Match",
+  ];
+
+  final List<String> difficulties = [
+    "Beginner",
+    "Amateur",
+    "Professional",
+    "Legend",
+  ];
+
+  final List<String> stadiums = [
+    "Camp Nou",
+    "Old Trafford",
+    "Santiago Bernabéu",
+    "Allianz Arena",
+    "San Siro",
+    "Anfield",
+    "Parc des Princes",
+    "Stamford Bridge",
+  ];
+
+  final List<String> weatherOptions = [
+    "Clear",
+    "Rainy",
+    "Snowy",
+    "Cloudy",
+  ];
+
+  final List<String> timeOfDayOptions = [
+    "Day",
+    "Night",
+    "Sunset",
+  ];
 
   @override
   void initState() {
@@ -66,48 +98,30 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
     super.dispose();
   }
 
-  // Get team size options based on selected mode
-  List<String> get teamSizeOptions {
-    if (selectedMode == "Clash Squad") {
-      return ["1v1", "2v2", "4v4"];
-    } else if (selectedMode == "Lone Wolf") {
-      return ["1v1", "2v2"];
-    } else if (selectedMode == "Battle Royale") {
-      return ["Solo", "Duo", "Squad"];
-    }
-    return [];
-  }
-
-  // Get available maps for selected mode
-  List<String> get availableMaps {
-    if (selectedMode == null) return [];
-    return mapsByMode[selectedMode] ?? [];
-  }
-
   Future<void> _createMatch() async {
     // Validation
     if (selectedMode == null) {
       _showError("Please select a mode");
       return;
     }
-    if (selectedMap == null) {
-      _showError("Please select a map");
+    if (selectedMatchTime == null) {
+      _showError("Please select match time");
       return;
     }
-    if (selectedTeamSize == null) {
-      _showError("Please select team size");
+    if (selectedDifficulty == null) {
+      _showError("Please select difficulty");
       return;
     }
-    if (selectedGunAttributes == null) {
-      _showError("Please select Gun Attributes");
+    if (selectedStadium == null) {
+      _showError("Please select a stadium");
       return;
     }
-    if (selectedUnlimitedItems == null) {
-      _showError("Please select Unlimited Items");
+    if (selectedWeather == null) {
+      _showError("Please select weather");
       return;
     }
-    if (selectedCharacterSkills == null) {
-      _showError("Please select Character Skills");
+    if (selectedTimeOfDay == null) {
+      _showError("Please select time of day");
       return;
     }
     if (pointsController.text.trim().isEmpty) {
@@ -135,17 +149,18 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
           ? userDoc['name']
           : currentUser.displayName ?? 'Unknown User';
 
-      // Prepare match data - NOW INCLUDES GAME FIELD
+      // Prepare match data
       Map<String, dynamic> matchData = {
-        'game': 'Free Fire', // IMPORTANT: Game identifier
+        'game': 'eFootball',
         'mode': selectedMode,
-        'map': selectedMap,
-        'teamSize': selectedTeamSize,
-        'gunAttributes': selectedGunAttributes,
-        'unlimitedItems': selectedUnlimitedItems,
-        'characterSkills': selectedCharacterSkills,
+        'map': selectedStadium, // Using stadium as map
+        'matchTime': selectedMatchTime,
+        'difficulty': selectedDifficulty,
+        'stadium': selectedStadium,
+        'weather': selectedWeather,
+        'timeOfDay': selectedTimeOfDay,
         'points': int.parse(pointsController.text.trim()),
-        'participants': [], // Initialize empty participants array
+        'participants': [],
         'createdBy': {
           'userId': currentUser.uid,
           'userName': userName,
@@ -156,14 +171,11 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
       };
 
       // Save to Firebase
-      DocumentReference matchRef = await _firestore
-          .collection('matches')
-          .add(matchData);
+      await _firestore.collection('matches').add(matchData);
 
       if (mounted) {
-        // Success with better feedback
         Fluttertoast.showToast(
-          msg: "🔥 Free Fire Match Created!",
+          msg: "⚽ eFootball Match Created!",
           toastLength: Toast.LENGTH_LONG,
           gravity: ToastGravity.BOTTOM,
           backgroundColor: const Color(0xFF10B981),
@@ -205,7 +217,7 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  "Your $selectedMode match on $selectedMap is now live!",
+                  "Your $selectedMode match at $selectedStadium is now live!",
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
@@ -217,11 +229,11 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
-                      Navigator.pop(context); // Close dialog
-                      Navigator.pop(context); // Go back to home
+                      Navigator.pop(context);
+                      Navigator.pop(context);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFEF4444),
+                      backgroundColor: const Color(0xFF10B981),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -244,11 +256,11 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
         // Clear form
         setState(() {
           selectedMode = null;
-          selectedMap = null;
-          selectedTeamSize = null;
-          selectedGunAttributes = null;
-          selectedUnlimitedItems = null;
-          selectedCharacterSkills = null;
+          selectedMatchTime = null;
+          selectedDifficulty = null;
+          selectedStadium = null;
+          selectedWeather = null;
+          selectedTimeOfDay = null;
           pointsController.clear();
         });
       }
@@ -284,7 +296,7 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text(
-          "Create Free Fire Match",
+          "Create eFootball Match",
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 20,
@@ -312,12 +324,12 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                    colors: [Color(0xFF10B981), Color(0xFF059669)],
                   ),
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFEF4444).withOpacity(0.3),
+                      color: const Color(0xFF10B981).withOpacity(0.3),
                       blurRadius: 16,
                       offset: const Offset(0, 8),
                     ),
@@ -332,7 +344,7 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: const Text(
-                        "🔥",
+                        "⚽",
                         style: TextStyle(fontSize: 32),
                       ),
                     ),
@@ -342,7 +354,7 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            "Free Fire",
+                            "eFootball",
                             style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
@@ -351,7 +363,7 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
                           ),
                           SizedBox(height: 4),
                           Text(
-                            "Configure your custom match",
+                            "Configure your football match",
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.white70,
@@ -368,89 +380,114 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
 
               // Mode Selection
               _buildCard(
-                title: "Game Mode",
-                icon: Icons.gamepad_rounded,
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: modes.map((mode) {
-                    return _buildModeChip(mode);
+                title: "Match Mode",
+                icon: Icons.groups_rounded,
+                child: Row(
+                  children: modes.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final mode = entry.value;
+                    return Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          right: index < modes.length - 1 ? 10 : 0,
+                        ),
+                        child: _buildModeOption(mode),
+                      ),
+                    );
                   }).toList(),
                 ),
               ),
 
-              // Map Selection (shown when mode is selected)
-              if (selectedMode != null && availableMaps.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                _buildCard(
-                  title: "Select Map",
-                  icon: Icons.map_rounded,
-                  child: Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: availableMaps.map((map) {
-                      return _buildMapChip(map);
-                    }).toList(),
-                  ),
-                ),
-              ],
+              const SizedBox(height: 16),
 
-              // Team Size
-              if (selectedMode != null && teamSizeOptions.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                _buildCard(
-                  title: "Team Size",
-                  icon: Icons.groups_rounded,
-                  child: Row(
-                    children: teamSizeOptions.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final size = entry.value;
-                      return Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.only(
-                            right: index < teamSizeOptions.length - 1 ? 10 : 0,
-                          ),
-                          child: _buildTeamSizeOption(size),
+              // Match Time
+              _buildCard(
+                title: "Match Duration",
+                icon: Icons.timer_rounded,
+                child: Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: matchTimes.map((time) {
+                    return _buildTimeChip(time);
+                  }).toList(),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Difficulty
+              _buildCard(
+                title: "Difficulty Level",
+                icon: Icons.trending_up_rounded,
+                child: Column(
+                  children: difficulties.asMap().entries.map((entry) {
+                    final difficulty = entry.value;
+                    return Padding(
+                      padding: EdgeInsets.only(
+                        bottom: entry.key < difficulties.length - 1 ? 10 : 0,
+                      ),
+                      child: _buildDifficultyOption(difficulty),
+                    );
+                  }).toList(),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Stadium Selection
+              _buildCard(
+                title: "Select Stadium",
+                icon: Icons.stadium_rounded,
+                child: Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: stadiums.map((stadium) {
+                    return _buildStadiumChip(stadium);
+                  }).toList(),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Weather
+              _buildCard(
+                title: "Weather Conditions",
+                icon: Icons.wb_sunny_rounded,
+                child: Row(
+                  children: weatherOptions.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final weather = entry.value;
+                    return Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          right: index < weatherOptions.length - 1 ? 8 : 0,
                         ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 16),
-
-              // Gun Attributes
-              _buildCard(
-                title: "Gun Attributes",
-                icon: Icons.gps_fixed_rounded,
-                child: _buildYesNoButtons(
-                  value: selectedGunAttributes,
-                  onChanged: (v) => setState(() => selectedGunAttributes = v),
+                        child: _buildWeatherOption(weather),
+                      ),
+                    );
+                  }).toList(),
                 ),
               ),
 
               const SizedBox(height: 16),
 
-              // Unlimited Items
+              // Time of Day
               _buildCard(
-                title: "Unlimited Items",
-                icon: Icons.inventory_2_rounded,
-                child: _buildYesNoButtons(
-                  value: selectedUnlimitedItems,
-                  onChanged: (v) => setState(() => selectedUnlimitedItems = v),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Character Skills
-              _buildCard(
-                title: "Character Skills",
-                icon: Icons.auto_awesome_rounded,
-                child: _buildYesNoButtons(
-                  value: selectedCharacterSkills,
-                  onChanged: (v) => setState(() => selectedCharacterSkills = v),
+                title: "Time of Day",
+                icon: Icons.brightness_6_rounded,
+                child: Row(
+                  children: timeOfDayOptions.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final timeOfDay = entry.value;
+                    return Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          right: index < timeOfDayOptions.length - 1 ? 10 : 0,
+                        ),
+                        child: _buildTimeOfDayOption(timeOfDay),
+                      ),
+                    );
+                  }).toList(),
                 ),
               ),
 
@@ -485,7 +522,7 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
                       ),
                       prefixIcon: Icon(
                         Icons.monetization_on_rounded,
-                        color: Color(0xFFEF4444),
+                        color: Color(0xFF10B981),
                       ),
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(
@@ -505,12 +542,12 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
                 height: 58,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                    colors: [Color(0xFF10B981), Color(0xFF059669)],
                   ),
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFEF4444).withOpacity(0.4),
+                      color: const Color(0xFF10B981).withOpacity(0.4),
                       blurRadius: 16,
                       offset: const Offset(0, 8),
                     ),
@@ -564,7 +601,6 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
     );
   }
 
-  // Card Wrapper
   Widget _buildCard({
     required String title,
     required IconData icon,
@@ -595,12 +631,12 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEF4444).withOpacity(0.1),
+                  color: const Color(0xFF10B981).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   icon,
-                  color: const Color(0xFFEF4444),
+                  color: const Color(0xFF10B981),
                   size: 22,
                 ),
               ),
@@ -622,109 +658,31 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
     );
   }
 
-  // Mode Chip
-  Widget _buildModeChip(String mode) {
+  Widget _buildModeOption(String mode) {
     final isSelected = selectedMode == mode;
-    return InkWell(
-      onTap: () {
-        setState(() {
-          selectedMode = mode;
-          selectedMap = null; // Reset map when mode changes
-          selectedTeamSize = null;
-        });
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFEF4444) : const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? const Color(0xFFEF4444) : const Color(0xFFE2E8F0),
-            width: 2,
-          ),
-        ),
-        child: Text(
-          mode,
-          style: TextStyle(
-            color: isSelected ? Colors.white : const Color(0xFF64748B),
-            fontWeight: FontWeight.bold,
-            fontSize: 15,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Map Chip
-  Widget _buildMapChip(String map) {
-    final isSelected = selectedMap == map;
-    return InkWell(
-      onTap: () => setState(() => selectedMap = map),
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF3B82F6) : const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF3B82F6) : const Color(0xFFE2E8F0),
-            width: 2,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.map_rounded,
-              size: 18,
-              color: isSelected ? Colors.white : const Color(0xFF64748B),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              map,
-              style: TextStyle(
-                color: isSelected ? Colors.white : const Color(0xFF64748B),
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Team Size Option
-  Widget _buildTeamSizeOption(String size) {
-    final isSelected = selectedTeamSize == size;
-    IconData icon;
-
-    if (size == "Solo" || size == "1v1") {
-      icon = Icons.person_rounded;
-    } else if (size == "Duo" || size == "2v2") {
-      icon = Icons.people_rounded;
-    } else {
-      icon = Icons.groups_rounded;
-    }
+    IconData icon = mode == "1v1"
+        ? Icons.person_rounded
+        : mode == "2v2"
+        ? Icons.people_rounded
+        : Icons.groups_rounded;
 
     return InkWell(
-      onTap: () => setState(() => selectedTeamSize = size),
+      onTap: () => setState(() => selectedMode = mode),
       borderRadius: BorderRadius.circular(14),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFEF4444) : const Color(0xFFF1F5F9),
+          color: isSelected ? const Color(0xFF10B981) : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? const Color(0xFFEF4444) : const Color(0xFFE2E8F0),
+            color: isSelected ? const Color(0xFF10B981) : const Color(0xFFE2E8F0),
             width: 2,
           ),
           boxShadow: isSelected
               ? [
             BoxShadow(
-              color: const Color(0xFFEF4444).withOpacity(0.3),
+              color: const Color(0xFF10B981).withOpacity(0.3),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -740,7 +698,7 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
             ),
             const SizedBox(height: 10),
             Text(
-              size,
+              mode,
               style: TextStyle(
                 color: isSelected ? Colors.white : const Color(0xFF1F2937),
                 fontWeight: FontWeight.bold,
@@ -753,72 +711,265 @@ class _FFCreatePageState extends State<FFCreatePage> with SingleTickerProviderSt
     );
   }
 
-  // Yes/No Buttons
-  Widget _buildYesNoButtons({
-    required String? value,
-    required Function(String?) onChanged,
-  }) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildYesNoOption(
-            label: "Yes",
-            icon: Icons.check_circle_rounded,
-            isSelected: value == "Yes",
-            onTap: () => onChanged("Yes"),
-            color: const Color(0xFF10B981),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildYesNoOption(
-            label: "No",
-            icon: Icons.cancel_rounded,
-            isSelected: value == "No",
-            onTap: () => onChanged("No"),
-            color: const Color(0xFFEF4444),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildYesNoOption({
-    required String label,
-    required IconData icon,
-    required bool isSelected,
-    required VoidCallback onTap,
-    required Color color,
-  }) {
+  Widget _buildTimeChip(String time) {
+    final isSelected = selectedMatchTime == time;
     return InkWell(
-      onTap: onTap,
+      onTap: () => setState(() => selectedMatchTime = time),
       borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(0.15) : const Color(0xFFF1F5F9),
+          color: isSelected ? const Color(0xFF3B82F6) : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? color : const Color(0xFFE2E8F0),
+            color: isSelected ? const Color(0xFF3B82F6) : const Color(0xFFE2E8F0),
             width: 2,
           ),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.timer_rounded,
+              size: 18,
+              color: isSelected ? Colors.white : const Color(0xFF64748B),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              time,
+              style: TextStyle(
+                color: isSelected ? Colors.white : const Color(0xFF64748B),
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDifficultyOption(String difficulty) {
+    final isSelected = selectedDifficulty == difficulty;
+    Color difficultyColor;
+    IconData icon;
+
+    switch (difficulty) {
+      case "Beginner":
+        difficultyColor = const Color(0xFF10B981);
+        icon = Icons.sentiment_satisfied_rounded;
+        break;
+      case "Amateur":
+        difficultyColor = const Color(0xFF3B82F6);
+        icon = Icons.sports_esports_rounded;
+        break;
+      case "Professional":
+        difficultyColor = const Color(0xFFF59E0B);
+        icon = Icons.trending_up_rounded;
+        break;
+      case "Legend":
+        difficultyColor = const Color(0xFFEF4444);
+        icon = Icons.emoji_events_rounded;
+        break;
+      default:
+        difficultyColor = const Color(0xFF10B981);
+        icon = Icons.sentiment_satisfied_rounded;
+    }
+
+    return InkWell(
+      onTap: () => setState(() => selectedDifficulty = difficulty),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected ? difficultyColor.withOpacity(0.15) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? difficultyColor : const Color(0xFFE2E8F0),
+            width: 2,
+          ),
+        ),
+        child: Row(
           children: [
             Icon(
               icon,
-              color: isSelected ? color : const Color(0xFF64748B),
-              size: 22,
+              color: isSelected ? difficultyColor : const Color(0xFF64748B),
+              size: 24,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 14),
             Text(
-              label,
+              difficulty,
               style: TextStyle(
-                color: isSelected ? color : const Color(0xFF1F2937),
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                color: isSelected ? difficultyColor : const Color(0xFF1F2937),
+                fontWeight: FontWeight.bold,
                 fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStadiumChip(String stadium) {
+    final isSelected = selectedStadium == stadium;
+    return InkWell(
+      onTap: () => setState(() => selectedStadium = stadium),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF8B5CF6) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF8B5CF6) : const Color(0xFFE2E8F0),
+            width: 2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.stadium_rounded,
+              size: 16,
+              color: isSelected ? Colors.white : const Color(0xFF64748B),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              stadium,
+              style: TextStyle(
+                color: isSelected ? Colors.white : const Color(0xFF64748B),
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWeatherOption(String weather) {
+    final isSelected = selectedWeather == weather;
+    IconData icon;
+
+    switch (weather) {
+      case "Clear":
+        icon = Icons.wb_sunny_rounded;
+        break;
+      case "Rainy":
+        icon = Icons.water_drop_rounded;
+        break;
+      case "Snowy":
+        icon = Icons.ac_unit_rounded;
+        break;
+      case "Cloudy":
+        icon = Icons.cloud_rounded;
+        break;
+      default:
+        icon = Icons.wb_sunny_rounded;
+    }
+
+    return InkWell(
+      onTap: () => setState(() => selectedWeather = weather),
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF06B6D4) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF06B6D4) : const Color(0xFFE2E8F0),
+            width: 2,
+          ),
+          boxShadow: isSelected
+              ? [
+            BoxShadow(
+              color: const Color(0xFF06B6D4).withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ]
+              : null,
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? Colors.white : const Color(0xFF64748B),
+              size: 28,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              weather,
+              style: TextStyle(
+                color: isSelected ? Colors.white : const Color(0xFF1F2937),
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimeOfDayOption(String timeOfDay) {
+    final isSelected = selectedTimeOfDay == timeOfDay;
+    IconData icon;
+
+    switch (timeOfDay) {
+      case "Day":
+        icon = Icons.wb_sunny_rounded;
+        break;
+      case "Night":
+        icon = Icons.nights_stay_rounded;
+        break;
+      case "Sunset":
+        icon = Icons.wb_twilight_rounded;
+        break;
+      default:
+        icon = Icons.wb_sunny_rounded;
+    }
+
+    return InkWell(
+      onTap: () => setState(() => selectedTimeOfDay = timeOfDay),
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFEC4899) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? const Color(0xFFEC4899) : const Color(0xFFE2E8F0),
+            width: 2,
+          ),
+          boxShadow: isSelected
+              ? [
+            BoxShadow(
+              color: const Color(0xFFEC4899).withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ]
+              : null,
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? Colors.white : const Color(0xFF64748B),
+              size: 32,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              timeOfDay,
+              style: TextStyle(
+                color: isSelected ? Colors.white : const Color(0xFF1F2937),
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
               ),
             ),
           ],
