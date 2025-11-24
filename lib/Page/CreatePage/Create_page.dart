@@ -1,4 +1,6 @@
 import 'package:betting_app/Page/CreatePage/FreeFireCreatePage.dart';
+import 'package:betting_app/Page/CreatePage/Pubg_page.dart';
+import 'package:betting_app/Page/CreatePage/effotball_page.dart';
 import 'package:flutter/material.dart';
 
 class CreatePage extends StatefulWidget {
@@ -231,9 +233,28 @@ class _CreatePageState extends State<CreatePage> with SingleTickerProviderStateM
                           colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
                         ),
                         emoji: "🎯",
-                        available: false,
+                        available: true,
                         onTap: () {
-                          _showComingSoonDialog(context, "PUBG Mobile");
+                          Navigator.push(
+                            context,
+                            PageRouteBuilder(
+                              pageBuilder: (context, animation, secondaryAnimation) =>
+                              const PUBGCreatePage(),
+                              transitionsBuilder:
+                                  (context, animation, secondaryAnimation, child) {
+                                return FadeTransition(
+                                  opacity: animation,
+                                  child: SlideTransition(
+                                    position: Tween<Offset>(
+                                      begin: const Offset(1, 0),
+                                      end: Offset.zero,
+                                    ).animate(animation),
+                                    child: child,
+                                  ),
+                                );
+                              },
+                            ),
+                          );
                         },
                       ),
                     ),
@@ -258,9 +279,28 @@ class _CreatePageState extends State<CreatePage> with SingleTickerProviderStateM
                           colors: [Color(0xFF10B981), Color(0xFF059669)],
                         ),
                         emoji: "⚽",
-                        available: false,
+                        available: true,
                         onTap: () {
-                          _showComingSoonDialog(context, "eFootball");
+                          Navigator.push(
+                            context,
+                            PageRouteBuilder(
+                              pageBuilder: (context, animation, secondaryAnimation) =>
+                              const EFootballCreatePage(),
+                              transitionsBuilder:
+                                  (context, animation, secondaryAnimation, child) {
+                                return FadeTransition(
+                                  opacity: animation,
+                                  child: SlideTransition(
+                                    position: Tween<Offset>(
+                                      begin: const Offset(1, 0),
+                                      end: Offset.zero,
+                                    ).animate(animation),
+                                    child: child,
+                                  ),
+                                );
+                              },
+                            ),
+                          );
                         },
                       ),
                     ),

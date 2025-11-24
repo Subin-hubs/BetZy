@@ -30,7 +30,7 @@ class _MainpageState extends State<Mainpage> {
   List<Widget> _buildScreens() {
     return [
       HomePage(),
-      Leaderboard_Page(),
+      LeaderboardPage(),
       CreatePage(),
       Reedem_Page(),
       MorePage(),

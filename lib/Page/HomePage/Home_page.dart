@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:betting_app/services/match_result_handler.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -46,6 +47,17 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       return;
     }
 
+    // Check if user has enough points
+    final handler = MatchResultHandler();
+    int requiredPoints = matchData['points'] ?? 0;
+
+    bool canJoin = await handler.canJoinMatch(currentUser.uid, requiredPoints);
+
+    if (!canJoin) {
+      _showCustomToast("Insufficient points! You need $requiredPoints points", const Color(0xFFEF4444));
+      return;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -80,6 +92,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
 
     try {
+      // Hold points in escrow
+      await handler.holdPointsForMatch(
+        userId: currentUser.uid,
+        points: requiredPoints,
+        matchId: matchId,
+      );
+
+      // Add user to match participants
       await _firestore.collection('matches').doc(matchId).update({
         'participants': FieldValue.arrayUnion([
           {
@@ -91,7 +111,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       });
 
       Navigator.pop(context);
-      _showCustomToast("🎮 Successfully joined the match!", const Color(0xFF10B981));
+      _showCustomToast("🎮 Joined! $requiredPoints points deducted", const Color(0xFF10B981));
     } catch (e) {
       Navigator.pop(context);
       _showCustomToast("Error: ${e.toString()}", const Color(0xFFEF4444));

@@ -48,18 +48,23 @@ class _SignupPageState extends State<SignupPage> {
       // Update display name
       await userCredential.user?.updateDisplayName(_nameController.text.trim());
 
-      // Store additional user data in Firestore
+      // Store additional user data in Firestore with leaderboard fields
       await _firestore.collection('users').doc(userCredential.user?.uid).set({
         'name': _nameController.text.trim(),
         'email': _emailController.text.trim(),
+        'totalPoints': 1000,        // Starting points for new users
+        'wins': 0,
+        'losses': 0,
+        'gamesPlayed': 0,
         'createdAt': FieldValue.serverTimestamp(),
+        'lastUpdated': FieldValue.serverTimestamp(),
         'uid': userCredential.user?.uid,
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Account created successfully!'),
+            content: Text('Account created successfully! You have 1000 starting points!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -158,7 +163,7 @@ class _SignupPageState extends State<SignupPage> {
                   const SizedBox(height: 5),
 
                   Text(
-                    "Join us today and start your journey",
+                    "Join us today and get 1000 free points!",
                     style: TextStyle(
                       color: Colors.grey.shade600,
                       fontSize: 14,
