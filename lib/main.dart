@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'Admine/admin_navbar.dart';
 import 'Page/Auth/LoginPage.dart';
 import 'Page/Auth/SignupPage.dart';
 import 'Page/Navbar_page.dart';
@@ -23,7 +24,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home:  LoginPage(),
+      home:  AdmineMain(0, true),
     );
   }
 }
