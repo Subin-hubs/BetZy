@@ -2,7 +2,9 @@ import 'package:betting_app/Page/Auth/SignupPage.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../Admine/admin_navbar.dart';
 import '../Navbar_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -22,8 +24,9 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  // Firebase Auth instance
+  // Firebase instances
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   @override
   void dispose() {
@@ -39,6 +42,86 @@ class _LoginPageState extends State<LoginPage> {
     await prefs.setInt('login_time', currentTime);
   }
 
+  // Check if email is admin
+  bool _isAdminEmail(String email) {
+    return email.trim().toLowerCase().endsWith('@admin.com');
+  }
+
+  // Check if user is banned
+  Future<bool> _isUserBanned(String uid) async {
+    try {
+      DocumentSnapshot userDoc = await _firestore.collection('users').doc(uid).get();
+      if (userDoc.exists) {
+        return userDoc.get('isBanned') ?? false;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Show banned dialog
+  void _showBannedDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.block, color: Colors.red, size: 30),
+              SizedBox(width: 10),
+              Text(
+                'Account Banned',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Your account has been banned by the administrator.',
+                style: TextStyle(fontSize: 16),
+              ),
+              SizedBox(height: 10),
+              Text(
+                'Please contact the admin of this app for more information.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                // Sign out the banned user
+                _auth.signOut();
+              },
+              child: Text(
+                'OK',
+                style: TextStyle(
+                  color: primaryColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   // Login with Email and Password
   Future<void> _loginWithEmail() async {
     if (!_formKey.currentState!.validate()) return;
@@ -46,29 +129,80 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      await _auth.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+      final email = _emailController.text.trim();
+      final password = _passwordController.text.trim();
+
+      // Authenticate with Firebase
+      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
       );
 
-      // Save login time for 24-hour session
-      await _saveLoginTime();
+      final userId = userCredential.user?.uid;
+      final userName = userCredential.user?.displayName ?? 'User';
 
       if (mounted) {
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Login Successful! Session valid for 24 hours.'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
+        // Check if admin or regular user based on email domain
+        if (_isAdminEmail(email)) {
+          // Admin user - Save to admin_users collection
+          await _firestore.collection('admin_users').doc(userId).set({
+            'name': userName,
+            'email': email,
+            'loginTime': FieldValue.serverTimestamp(),
+            'lastLogin': DateTime.now().toString(),
+          }, SetOptions(merge: true));
 
-        // Navigate to MainPage
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const Mainpage(0, true)),
-        );
+          // Save login time for 24-hour session
+          await _saveLoginTime();
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Admin Login Successful!'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AdmineMain(0, true),
+            ),
+          );
+        } else {
+          // Regular user - Check if banned
+          bool isBanned = await _isUserBanned(userId!);
+
+          if (isBanned) {
+            // User is banned - show dialog and sign out
+            await _auth.signOut();
+            _showBannedDialog();
+            setState(() => _isLoading = false);
+            return;
+          }
+
+          // User not banned - proceed with login
+          // Update last login in users collection
+          await _firestore.collection('users').doc(userId).update({
+            'lastLogin': FieldValue.serverTimestamp(),
+          });
+
+          // Save login time for 24-hour session
+          await _saveLoginTime();
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Login Successful! Session valid for 24 hours.'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const Mainpage(0, true)),
+          );
+        }
       }
     } on FirebaseAuthException catch (e) {
       String message = 'An error occurred';
@@ -81,6 +215,8 @@ class _LoginPageState extends State<LoginPage> {
         message = 'Invalid email address.';
       } else if (e.code == 'user-disabled') {
         message = 'This account has been disabled.';
+      } else if (e.code == 'invalid-credential') {
+        message = 'Invalid email or password.';
       }
 
       if (mounted) {
@@ -289,40 +425,6 @@ class _LoginPageState extends State<LoginPage> {
 
                   SizedBox(height: size.height * 0.03),
 
-                  // DIVIDER
-                  Row(
-                    children: [
-                      Expanded(child: Divider(color: Colors.grey.shade300)),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: Text(
-                          "or continue with",
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                      Expanded(child: Divider(color: Colors.grey.shade300)),
-                    ],
-                  ),
-
-                  SizedBox(height: size.height * 0.02),
-
-                  // Social Buttons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      socialButton(Icons.g_mobiledata, Colors.red, "Google"),
-                      const SizedBox(width: 15),
-                      socialButton(Icons.apple, Colors.black, "Apple"),
-                      const SizedBox(width: 15),
-                      socialButton(Icons.facebook, Colors.blue, "Facebook"),
-                    ],
-                  ),
-
-                  SizedBox(height: size.height * 0.03),
-
                   // Sign Up Link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -399,30 +501,6 @@ class _LoginPageState extends State<LoginPage> {
             horizontal: 10,
           ),
         ),
-      ),
-    );
-  }
-
-  // SOCIAL BUTTON
-  Widget socialButton(IconData icon, Color color, String label) {
-    return Tooltip(
-      message: label,
-      child: Container(
-        height: 50,
-        width: 50,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.grey.shade300),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.shade200,
-              blurRadius: 5,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Icon(icon, color: color, size: 28),
       ),
     );
   }

@@ -33,84 +33,86 @@ class _SignupPageState extends State<SignupPage> {
   }
 
   // Sign Up with Email and Password
+  // Sign Up with Email and Password
   Future<void> _signUpWithEmail() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
     try {
+      final email = _emailController.text.trim();
+      final password = _passwordController.text.trim();
+      final name = _nameController.text.trim();
+
       // Create user in Firebase Auth
       UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+        email: email,
+        password: password,
       );
 
       // Update display name
-      await userCredential.user?.updateDisplayName(_nameController.text.trim());
+      await userCredential.user?.updateDisplayName(name);
 
-      // Store additional user data in Firestore with leaderboard fields
-      await _firestore.collection('users').doc(userCredential.user?.uid).set({
-        'name': _nameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'totalPoints': 1000,        // Starting points for new users
-        'wins': 0,
-        'losses': 0,
-        'gamesPlayed': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-        'lastUpdated': FieldValue.serverTimestamp(),
-        'uid': userCredential.user?.uid,
-      });
+      final userId = userCredential.user?.uid;
+
+      // Check if this is an admin signup
+      if (_isAdminEmail(email)) {
+        // Create ADMIN record - no game fields
+        await _firestore.collection('admin_users').doc(userId).set({
+          'name': name,
+          'email': email,
+          'createdAt': FieldValue.serverTimestamp(),
+          'lastLogin': FieldValue.serverTimestamp(),
+          'uid': userId,
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Admin account created successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        // Create USER record - with game fields
+        await _firestore.collection('users').doc(userId).set({
+          'name': name,
+          'email': email,
+          'totalPoints': 1000,
+          'points': 1000,
+          'wins': 0,
+          'losses': 0,
+          'gamesPlayed': 0,
+          'isBanned': false,
+          'createdAt': FieldValue.serverTimestamp(),
+          'lastUpdated': FieldValue.serverTimestamp(),
+          'lastLogin': FieldValue.serverTimestamp(),
+          'uid': userId,
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Account created successfully! You have 1000 starting points!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account created successfully! You have 1000 starting points!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        // Navigate to home page or login
-        // TODO: Navigate to your home page
-        // Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => HomePage()));
-
-        // Or navigate back to login
+        // Navigate back to login
         Navigator.pop(context);
       }
     } on FirebaseAuthException catch (e) {
-      String message = 'An error occurred';
-
-      if (e.code == 'weak-password') {
-        message = 'The password provided is too weak.';
-      } else if (e.code == 'email-already-in-use') {
-        message = 'An account already exists for this email.';
-      } else if (e.code == 'invalid-email') {
-        message = 'Invalid email address.';
-      } else if (e.code == 'operation-not-allowed') {
-        message = 'Email/password accounts are not enabled.';
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      // ... your existing error handling
     }
+  }
+
+// Add this helper method to check admin email
+  bool _isAdminEmail(String email) {
+    return email.trim().toLowerCase().endsWith('@admin.com');
   }
 
   @override
@@ -265,41 +267,7 @@ class _SignupPageState extends State<SignupPage> {
                     ),
                   ),
 
-                  const SizedBox(height: 20),
-
-                  // Divider
-                  Row(
-                    children: [
-                      Expanded(child: Divider(color: Colors.grey.shade300)),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: Text(
-                          "or sign up with",
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                      Expanded(child: Divider(color: Colors.grey.shade300)),
-                    ],
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  // Social Buttons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildSocialButton(Icons.g_mobiledata, Colors.red),
-                      const SizedBox(width: 15),
-                      _buildSocialButton(Icons.apple, Colors.black),
-                      const SizedBox(width: 15),
-                      _buildSocialButton(Icons.facebook, Colors.blue.shade800),
-                    ],
-                  ),
-
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 30),
 
                   // Login Link
                   Row(
@@ -399,26 +367,6 @@ class _SignupPageState extends State<SignupPage> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildSocialButton(IconData icon, Color color) {
-    return Container(
-      height: 48,
-      width: 48,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.grey.shade300),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.shade200,
-            blurRadius: 5,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Icon(icon, color: color, size: 26),
     );
   }
 }

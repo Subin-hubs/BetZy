@@ -11,7 +11,6 @@ class EFootballCreatePage extends StatefulWidget {
 }
 
 class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTickerProviderStateMixin {
-  // Dropdown selections
   String? selectedMode;
   String? selectedMatchTime;
   String? selectedDifficulty;
@@ -19,21 +18,16 @@ class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTi
   String? selectedWeather;
   String? selectedTimeOfDay;
 
-  // Textfield controller for points
   TextEditingController pointsController = TextEditingController();
 
-  // Firebase instances
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Loading state
   bool _isCreating = false;
 
-  // Animation
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
-  // Dropdown options
   final List<String> modes = [
     "1v1",
     "2v2",
@@ -99,7 +93,6 @@ class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTi
   }
 
   Future<void> _createMatch() async {
-    // Validation
     if (selectedMode == null) {
       _showError("Please select a mode");
       return;
@@ -129,37 +122,66 @@ class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTi
       return;
     }
 
-    // Get current user
     User? currentUser = _auth.currentUser;
     if (currentUser == null) {
       _showError("You must be logged in to create a match");
       return;
     }
 
+    // Parse the points
+    int matchPoints = int.tryParse(pointsController.text.trim()) ?? 0;
+
+    if (matchPoints <= 0) {
+      _showError("Please enter a valid point amount");
+      return;
+    }
+
     setState(() => _isCreating = true);
 
     try {
-      // Get user details from Firestore
+      // Get user document
       DocumentSnapshot userDoc = await _firestore
           .collection('users')
           .doc(currentUser.uid)
           .get();
 
-      String userName = userDoc.exists && userDoc['name'] != null
-          ? userDoc['name']
-          : currentUser.displayName ?? 'Unknown User';
+      if (!userDoc.exists) {
+        _showError("User profile not found");
+        setState(() => _isCreating = false);
+        return;
+      }
 
-      // Prepare match data
+      String userName = userDoc['name'] ?? currentUser.displayName ?? 'Unknown User';
+
+      // CHECK USER'S CURRENT POINTS
+      int currentPoints = userDoc['points'] ?? 0;
+
+      // Check if user has enough points
+      if (currentPoints < matchPoints) {
+        _showError("Insufficient points! You have $currentPoints points but need $matchPoints");
+        setState(() => _isCreating = false);
+        return;
+      }
+
+      // DEDUCT POINTS FROM USER
+      int newPoints = currentPoints - matchPoints;
+
+      await _firestore.collection('users').doc(currentUser.uid).update({
+        'points': newPoints,
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Create match data
       Map<String, dynamic> matchData = {
         'game': 'eFootball',
         'mode': selectedMode,
-        'map': selectedStadium, // Using stadium as map
+        'map': selectedStadium,
         'matchTime': selectedMatchTime,
         'difficulty': selectedDifficulty,
         'stadium': selectedStadium,
         'weather': selectedWeather,
         'timeOfDay': selectedTimeOfDay,
-        'points': int.parse(pointsController.text.trim()),
+        'points': matchPoints,
         'participants': [],
         'createdBy': {
           'userId': currentUser.uid,
@@ -167,15 +189,14 @@ class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTi
           'userEmail': currentUser.email,
         },
         'createdAt': FieldValue.serverTimestamp(),
-        'status': 'active',
+        'status': 'pending',
       };
 
-      // Save to Firebase
       await _firestore.collection('matches').add(matchData);
 
       if (mounted) {
         Fluttertoast.showToast(
-          msg: "⚽ eFootball Match Created!",
+          msg: "⚽ Match Created! $matchPoints points deducted. Balance: $newPoints",
           toastLength: Toast.LENGTH_LONG,
           gravity: ToastGravity.BOTTOM,
           backgroundColor: const Color(0xFF10B981),
@@ -183,7 +204,6 @@ class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTi
           fontSize: 15.0,
         );
 
-        // Show success dialog
         showDialog(
           context: context,
           barrierDismissible: false,
@@ -201,14 +221,14 @@ class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTi
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
-                    Icons.check_circle,
+                    Icons.check_circle_rounded,
                     color: Color(0xFF10B981),
                     size: 64,
                   ),
                 ),
                 const SizedBox(height: 20),
                 const Text(
-                  "Match Created!",
+                  "Match Submitted!",
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -217,7 +237,7 @@ class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTi
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  "Your $selectedMode match at $selectedStadium is now live!",
+                  "Your $selectedMode match at $selectedStadium is pending approval.\n\n$matchPoints points deducted.\nRemaining balance: $newPoints points",
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
@@ -240,7 +260,7 @@ class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTi
                       ),
                     ),
                     child: const Text(
-                      "View All Matches",
+                      "Done",
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -253,7 +273,6 @@ class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTi
           ),
         );
 
-        // Clear form
         setState(() {
           selectedMode = null;
           selectedMatchTime = null;
@@ -318,7 +337,6 @@ class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTi
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header Card
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
@@ -378,7 +396,6 @@ class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTi
 
               const SizedBox(height: 28),
 
-              // Mode Selection
               _buildCard(
                 title: "Match Mode",
                 icon: Icons.groups_rounded,
@@ -400,7 +417,6 @@ class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTi
 
               const SizedBox(height: 16),
 
-              // Match Time
               _buildCard(
                 title: "Match Duration",
                 icon: Icons.timer_rounded,
@@ -415,7 +431,6 @@ class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTi
 
               const SizedBox(height: 16),
 
-              // Difficulty
               _buildCard(
                 title: "Difficulty Level",
                 icon: Icons.trending_up_rounded,
@@ -434,7 +449,6 @@ class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTi
 
               const SizedBox(height: 16),
 
-              // Stadium Selection
               _buildCard(
                 title: "Select Stadium",
                 icon: Icons.stadium_rounded,
@@ -449,7 +463,6 @@ class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTi
 
               const SizedBox(height: 16),
 
-              // Weather
               _buildCard(
                 title: "Weather Conditions",
                 icon: Icons.wb_sunny_rounded,
@@ -471,7 +484,6 @@ class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTi
 
               const SizedBox(height: 16),
 
-              // Time of Day
               _buildCard(
                 title: "Time of Day",
                 icon: Icons.brightness_6_rounded,
@@ -493,7 +505,6 @@ class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTi
 
               const SizedBox(height: 16),
 
-              // Points
               _buildCard(
                 title: "Match Points",
                 icon: Icons.stars_rounded,
@@ -536,7 +547,6 @@ class _EFootballCreatePageState extends State<EFootballCreatePage> with SingleTi
 
               const SizedBox(height: 32),
 
-              // Create Button
               Container(
                 width: double.infinity,
                 height: 58,

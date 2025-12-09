@@ -32,7 +32,7 @@ class _MainpageState extends State<Mainpage> {
       HomePage(),
       LeaderboardPage(),
       CreatePage(),
-      Reedem_Page(),
+      UserTopupPage(),
       MorePage(),
     ];
   }

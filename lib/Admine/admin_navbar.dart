@@ -32,8 +32,8 @@ class _AdmineMainState extends State<AdmineMain> {
     return [
       AdminUserManagementScreen(),
       AdmineDashboard(),
-      AdmineMagemanagement(),
-      AdmineResults(),
+      AdminMatchManagement(),
+      AdminTopupPage(),
       AdmineMore(),
     ];
   }

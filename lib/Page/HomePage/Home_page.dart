@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:betting_app/services/match_result_handler.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -47,14 +46,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       return;
     }
 
-    // Check if user has enough points
-    final handler = MatchResultHandler();
-    int requiredPoints = matchData['points'] ?? 0;
+    List participants = matchData['participants'] ?? [];
+    bool alreadyJoined = participants.any((p) => p['userId'] == currentUser.uid);
 
-    bool canJoin = await handler.canJoinMatch(currentUser.uid, requiredPoints);
-
-    if (!canJoin) {
-      _showCustomToast("Insufficient points! You need $requiredPoints points", const Color(0xFFEF4444));
+    if (alreadyJoined) {
+      _showCustomToast("You've already joined this match!", const Color(0xFF3B82F6));
       return;
     }
 
@@ -72,8 +68,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(
-                color: const Color(0xFF3B82F6),
+              const CircularProgressIndicator(
+                color: Color(0xFF3B82F6),
                 strokeWidth: 3,
               ),
               const SizedBox(height: 20),
@@ -92,14 +88,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
 
     try {
-      // Hold points in escrow
-      await handler.holdPointsForMatch(
-        userId: currentUser.uid,
-        points: requiredPoints,
-        matchId: matchId,
-      );
-
-      // Add user to match participants
       await _firestore.collection('matches').doc(matchId).update({
         'participants': FieldValue.arrayUnion([
           {
@@ -111,7 +99,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       });
 
       Navigator.pop(context);
-      _showCustomToast("🎮 Joined! $requiredPoints points deducted", const Color(0xFF10B981));
+      _showCustomToast("🎮 Successfully joined the match!", const Color(0xFF10B981));
     } catch (e) {
       Navigator.pop(context);
       _showCustomToast("Error: ${e.toString()}", const Color(0xFFEF4444));
@@ -137,7 +125,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         slivers: [
           // Modern App Bar
           SliverAppBar(
-            expandedHeight: 220,
+            expandedHeight: 180,
             floating: false,
             pinned: true,
             elevation: 0,
@@ -145,7 +133,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
               title: const Text(
-                "Active Matches",
+                "Live Matches",
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 22,
@@ -167,11 +155,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 child: Stack(
                   children: [
                     Positioned(
-                      right: -60,
-                      top: -60,
+                      right: -50,
+                      top: -50,
                       child: Container(
-                        width: 220,
-                        height: 220,
+                        width: 200,
+                        height: 200,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: Colors.white.withOpacity(0.1),
@@ -179,26 +167,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       ),
                     ),
                     Positioned(
-                      left: -40,
-                      bottom: -40,
+                      left: -30,
+                      bottom: -30,
                       child: Container(
-                        width: 180,
-                        height: 180,
+                        width: 150,
+                        height: 150,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: Colors.white.withOpacity(0.08),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      right: 40,
-                      bottom: 40,
-                      child: Container(
-                        width: 100,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white.withOpacity(0.05),
                         ),
                       ),
                     ),
@@ -218,13 +194,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 children: [
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 20),
-                    child: Text(
-                      "Select Game",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1F2937),
-                      ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.filter_list_rounded, size: 20, color: Color(0xFF64748B)),
+                        SizedBox(width: 8),
+                        Text(
+                          "Filter by Game",
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1F2937),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -233,7 +215,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Row(
                       children: [
-                        _buildGameChip('All', '🎮', Colors.blue),
+                        _buildGameChip('All', '🎮', const Color(0xFF3B82F6)),
                         _buildGameChip('Free Fire', '🔥', const Color(0xFFEF4444)),
                         _buildGameChip('PUBG', '🎯', const Color(0xFFF59E0B)),
                         _buildGameChip('eFootball', '⚽', const Color(0xFF10B981)),
@@ -259,8 +241,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        CircularProgressIndicator(
-                          color: const Color(0xFF3B82F6),
+                        const CircularProgressIndicator(
+                          color: Color(0xFF3B82F6),
                           strokeWidth: 3,
                         ),
                         const SizedBox(height: 20),
@@ -309,7 +291,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 return SliverFillRemaining(
                   child: _buildEmptyState(
                     Icons.filter_alt_off_rounded,
-                    "No matches found",
+                    "No $_selectedGame matches",
                     "Try selecting a different game",
                     const Color(0xFF3B82F6),
                   ),
@@ -357,13 +339,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () {
-            setState(() {
-              _selectedGame = label;
-            });
-          },
+          onTap: () => setState(() => _selectedGame = label),
           borderRadius: BorderRadius.circular(30),
-          child: Container(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: BoxDecoration(
               color: isSelected ? color : const Color(0xFFF1F5F9),
@@ -385,10 +364,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  emoji,
-                  style: const TextStyle(fontSize: 18),
-                ),
+                Text(emoji, style: const TextStyle(fontSize: 18)),
                 const SizedBox(width: 8),
                 Text(
                   label,
@@ -435,6 +411,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           const SizedBox(height: 10),
           Text(
             subtitle,
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 15,
               color: Colors.grey.shade600,
@@ -451,9 +428,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     String map = matchData['map'] ?? 'N/A';
     int points = matchData['points'] ?? 0;
     String creatorName = matchData['createdBy']?['userName'] ?? 'Unknown';
-    String gunAttributes = matchData['gunAttributes'] ?? 'No';
-    String unlimitedItems = matchData['unlimitedItems'] ?? 'No';
-    String characterSkills = matchData['characterSkills'] ?? 'No';
     List participants = matchData['participants'] ?? [];
 
     // Game specific colors and emojis
@@ -482,6 +456,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: const Color(0xFFE2E8F0),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.06),
@@ -499,10 +477,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  gameColor,
-                  gameColor.withOpacity(0.8),
-                ],
+                colors: [gameColor, gameColor.withOpacity(0.8)],
               ),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(24),
@@ -519,10 +494,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         color: Colors.white.withOpacity(0.25),
                         borderRadius: BorderRadius.circular(18),
                       ),
-                      child: Text(
-                        gameEmoji,
-                        style: const TextStyle(fontSize: 30),
-                      ),
+                      child: Text(gameEmoji, style: const TextStyle(fontSize: 30)),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -537,47 +509,41 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 6,
+                          const SizedBox(height: 6),
+                          Row(
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(
                                   color: Colors.white.withOpacity(0.25),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: Text(
-                                  mode,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.gamepad_rounded, color: Colors.white, size: 14),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      mode,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              if (map != 'N/A')
+                              if (map != 'N/A') ...[
+                                const SizedBox(width: 8),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                   decoration: BoxDecoration(
                                     color: Colors.white.withOpacity(0.25),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Row(
-                                    mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(
-                                        Icons.map_rounded,
-                                        color: Colors.white,
-                                        size: 14,
-                                      ),
+                                      const Icon(Icons.map_rounded, color: Colors.white, size: 14),
                                       const SizedBox(width: 4),
                                       Text(
                                         map,
@@ -586,21 +552,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                           fontSize: 12,
                                           fontWeight: FontWeight.w600,
                                         ),
-                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
                                   ),
                                 ),
+                              ],
                             ],
                           ),
                         ],
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 12,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
@@ -614,11 +577,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       ),
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.stars_rounded,
-                            color: gameColor,
-                            size: 22,
-                          ),
+                          Icon(Icons.stars_rounded, color: gameColor, size: 22),
                           const SizedBox(width: 6),
                           Text(
                             "$points",
@@ -644,11 +603,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.group_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
+                        const Icon(Icons.group_rounded, color: Colors.white, size: 18),
                         const SizedBox(width: 8),
                         Text(
                           "${participants.length} ${participants.length == 1 ? 'player' : 'players'} joined",
@@ -678,10 +633,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   decoration: BoxDecoration(
                     color: const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: const Color(0xFFE2E8F0),
-                      width: 1.5,
-                    ),
+                    border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
                   ),
                   child: Row(
                     children: [
@@ -693,11 +645,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           ),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
-                          Icons.person_rounded,
-                          color: Colors.white,
-                          size: 24,
-                        ),
+                        child: const Icon(Icons.person_rounded, color: Colors.white, size: 24),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -724,113 +672,16 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           ],
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF10B981),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              "ACTIVE",
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFF10B981),
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ],
                   ),
                 ),
 
                 const SizedBox(height: 20),
 
-                // Match Settings
-                Row(
-                  children: [
-                    Icon(
-                      Icons.tune_rounded,
-                      size: 18,
-                      color: Colors.grey.shade600,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      "Match Settings",
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.grey.shade700,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
+                // Game-specific details
+                _buildGameSpecificDetails(matchData, gameColor),
 
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: const Color(0xFFE2E8F0),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      _buildSettingRow(
-                        "Gun Attributes",
-                        gunAttributes,
-                        Icons.gps_fixed_rounded,
-                        gunAttributes == "Yes",
-                      ),
-                      Divider(
-                        height: 1,
-                        color: const Color(0xFFE2E8F0),
-                        indent: 16,
-                        endIndent: 16,
-                      ),
-                      _buildSettingRow(
-                        "Unlimited Items",
-                        unlimitedItems,
-                        Icons.inventory_2_rounded,
-                        unlimitedItems == "Yes",
-                      ),
-                      Divider(
-                        height: 1,
-                        color: const Color(0xFFE2E8F0),
-                        indent: 16,
-                        endIndent: 16,
-                      ),
-                      _buildSettingRow(
-                        "Character Skills",
-                        characterSkills,
-                        Icons.auto_awesome_rounded,
-                        characterSkills == "Yes",
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
 
                 // Join button
                 Container(
@@ -854,17 +705,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     child: InkWell(
                       onTap: () => _joinMatch(matchId, matchData),
                       borderRadius: BorderRadius.circular(18),
-                      child: Center(
+                      child: const Center(
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
-                              Icons.sports_esports_rounded,
-                              size: 24,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 12),
-                            const Text(
+                            Icon(Icons.sports_esports_rounded, size: 24, color: Colors.white),
+                            SizedBox(width: 12),
+                            Text(
                               "Join Match",
                               style: TextStyle(
                                 fontSize: 18,
@@ -887,23 +734,109 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
-  Widget _buildSettingRow(String label, String value, IconData icon, bool isEnabled) {
+  Widget _buildGameSpecificDetails(Map<String, dynamic> matchData, Color gameColor) {
+    String game = matchData['game'] ?? '';
+
+    List<Widget> details = [];
+
+    if (game == 'Free Fire') {
+      details = [
+        _buildDetailRow('Gun Attributes', matchData['gunAttributes'] ?? 'N/A',
+            Icons.gps_fixed_rounded, matchData['gunAttributes'] == 'Yes'),
+        _buildDetailRow('Unlimited Items', matchData['unlimitedItems'] ?? 'N/A',
+            Icons.inventory_2_rounded, matchData['unlimitedItems'] == 'Yes'),
+        _buildDetailRow('Character Skills', matchData['characterSkills'] ?? 'N/A',
+            Icons.auto_awesome_rounded, matchData['characterSkills'] == 'Yes'),
+        _buildDetailRow('Team Size', matchData['teamSize'] ?? 'N/A',
+            Icons.groups_rounded, true),
+      ];
+    } else if (game == 'PUBG') {
+      details = [
+        _buildDetailRow('Perspective', matchData['perspective'] ?? 'N/A',
+            Icons.remove_red_eye_rounded, true),
+        _buildDetailRow('Weather Mode', matchData['weatherMode'] ?? 'N/A',
+            Icons.wb_sunny_rounded, true),
+        _buildDetailRow('Zone Mode', matchData['zoneMode'] ?? 'N/A',
+            Icons.speed_rounded, true),
+        _buildDetailRow('Team Size', matchData['teamSize'] ?? 'N/A',
+            Icons.groups_rounded, true),
+      ];
+    } else if (game == 'eFootball') {
+      details = [
+        _buildDetailRow('Match Time', matchData['matchTime'] ?? 'N/A',
+            Icons.timer_rounded, true),
+        _buildDetailRow('Difficulty', matchData['difficulty'] ?? 'N/A',
+            Icons.trending_up_rounded, true),
+        _buildDetailRow('Stadium', matchData['stadium'] ?? 'N/A',
+            Icons.stadium_rounded, true),
+        _buildDetailRow('Weather', matchData['weather'] ?? 'N/A',
+            Icons.wb_sunny_rounded, true),
+        _buildDetailRow('Time of Day', matchData['timeOfDay'] ?? 'N/A',
+            Icons.brightness_6_rounded, true),
+      ];
+    }
+
+    if (details.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.info_outline_rounded, size: 18, color: Colors.grey.shade600),
+            const SizedBox(width: 8),
+            Text(
+              "Match Details",
+              style: TextStyle(
+                fontSize: 15,
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+          ),
+          child: Column(
+            children: List.generate(
+              details.length,
+                  (index) => Column(
+                children: [
+                  details[index],
+                  if (index < details.length - 1)
+                    const Divider(height: 1, color: Color(0xFFE2E8F0), indent: 16, endIndent: 16),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, IconData icon, bool isEnabled) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: isEnabled
-                  ? const Color(0xFF10B981).withOpacity(0.15)
+                  ? const Color(0xFF3B82F6).withOpacity(0.15)
                   : Colors.grey.withOpacity(0.15),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               icon,
-              size: 20,
-              color: isEnabled ? const Color(0xFF10B981) : Colors.grey.shade500,
+              size: 18,
+              color: isEnabled ? const Color(0xFF3B82F6) : Colors.grey.shade500,
             ),
           ),
           const SizedBox(width: 14),
@@ -911,31 +844,24 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             child: Text(
               label,
               style: const TextStyle(
-                fontSize: 15,
+                fontSize: 14,
                 color: Color(0xFF1F2937),
                 fontWeight: FontWeight.w600,
               ),
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
-              color: isEnabled
-                  ? const Color(0xFF10B981).withOpacity(0.15)
-                  : const Color(0xFFEF4444).withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isEnabled
-                    ? const Color(0xFF10B981).withOpacity(0.3)
-                    : const Color(0xFFEF4444).withOpacity(0.3),
-                width: 1.5,
-              ),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
             ),
             child: Text(
               value,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 13,
-                color: isEnabled ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                color: Color(0xFF1F2937),
                 fontWeight: FontWeight.bold,
               ),
             ),

@@ -16,19 +16,20 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1a1a2e),
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        backgroundColor: const Color(0xFF16213e),
-        elevation: 0,
+        backgroundColor: Colors.white,
+        elevation: 1,
         title: const Text(
           'User Management',
           style: TextStyle(
-            color: Colors.white,
+            color: Color(0xFF2962FF),
             fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
         ),
         centerTitle: true,
+        iconTheme: const IconThemeData(color: Color(0xFF2962FF)),
       ),
       body: Column(
         children: [
@@ -45,10 +46,10 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF16213e),
+        color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.grey.withOpacity(0.1),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -58,13 +59,13 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
         children: [
           // Search Bar
           TextField(
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(color: Colors.black87),
             decoration: InputDecoration(
               hintText: 'Search by name or email...',
               hintStyle: TextStyle(color: Colors.grey[400]),
-              prefixIcon: const Icon(Icons.search, color: Colors.white70),
+              prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
               filled: true,
-              fillColor: const Color(0xFF1a1a2e),
+              fillColor: Colors.grey[100],
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -102,10 +103,10 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
           _filterStatus = value;
         });
       },
-      backgroundColor: const Color(0xFF1a1a2e),
-      selectedColor: const Color(0xFF0f3460),
+      backgroundColor: Colors.grey[100],
+      selectedColor: const Color(0xFF2962FF),
       labelStyle: TextStyle(
-        color: isSelected ? Colors.white : Colors.grey[400],
+        color: isSelected ? Colors.white : Colors.grey[700],
         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
       ),
       checkmarkColor: Colors.white,
@@ -114,7 +115,10 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
 
   Widget _buildUserList() {
     return StreamBuilder<QuerySnapshot>(
-      stream: _firestore.collection('users').snapshots(),
+      stream: _firestore
+          .collection('users')
+          .where('email', isGreaterThanOrEqualTo: '')
+          .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(
@@ -127,7 +131,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
 
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
-            child: CircularProgressIndicator(color: Color(0xFF00d4ff)),
+            child: CircularProgressIndicator(color: Color(0xFF2962FF)),
           );
         }
 
@@ -140,11 +144,17 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
           );
         }
 
-        // Filter users
+        // Filter out admin users and apply search/status filters
         var users = snapshot.data!.docs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
-          final name = (data['name'] ?? '').toString().toLowerCase();
           final email = (data['email'] ?? '').toString().toLowerCase();
+
+          // Exclude admin users (emails ending with @admin.com)
+          if (email.endsWith('@admin.com')) {
+            return false;
+          }
+
+          final name = (data['name'] ?? '').toString().toLowerCase();
           final isBanned = data['isBanned'] ?? false;
 
           // Search filter
@@ -185,25 +195,35 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
   Widget _buildUserCard(String userId, Map<String, dynamic> userData) {
     final name = userData['name'] ?? 'Unknown';
     final email = userData['email'] ?? 'No email';
-    final points = userData['points'] ?? 0;
+    final points = userData['totalPoints'] ?? 0;
+    final wins = userData['wins'] ?? 0;
+    final losses = userData['losses'] ?? 0;
+    final gamesPlayed = userData['gamesPlayed'] ?? 0;
     final isBanned = userData['isBanned'] ?? false;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF16213e),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isBanned ? Colors.red.withOpacity(0.3) : Colors.transparent,
+          color: isBanned ? Colors.red.withOpacity(0.3) : Colors.grey.shade200,
           width: 2,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           leading: CircleAvatar(
-            backgroundColor: isBanned ? Colors.red : const Color(0xFF0f3460),
+            backgroundColor: isBanned ? Colors.red : const Color(0xFF2962FF),
             child: Text(
               name[0].toUpperCase(),
               style: const TextStyle(
@@ -218,7 +238,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                 child: Text(
                   name,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: Colors.black87,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
@@ -228,7 +248,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.2),
+                    color: Colors.red.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Text(
@@ -248,17 +268,17 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
               const SizedBox(height: 4),
               Text(
                 email,
-                style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                style: TextStyle(color: Colors.grey[600], fontSize: 14),
               ),
               const SizedBox(height: 4),
               Row(
                 children: [
-                  const Icon(Icons.account_balance_wallet, color: Color(0xFF00d4ff), size: 16),
+                  const Icon(Icons.account_balance_wallet, color: Color(0xFF2962FF), size: 16),
                   const SizedBox(width: 4),
                   Text(
                     '$points Points',
                     style: const TextStyle(
-                      color: Color(0xFF00d4ff),
+                      color: Color(0xFF2962FF),
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
                     ),
@@ -271,7 +291,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF0f3460).withOpacity(0.3),
+                color: Colors.grey[50],
                 borderRadius: const BorderRadius.only(
                   bottomLeft: Radius.circular(16),
                   bottomRight: Radius.circular(16),
@@ -279,6 +299,18 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
               ),
               child: Column(
                 children: [
+                  // Stats Row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildStatItem('Games', gamesPlayed.toString(), Icons.sports_esports),
+                      _buildStatItem('Wins', wins.toString(), Icons.emoji_events, Colors.green),
+                      _buildStatItem('Losses', losses.toString(), Icons.trending_down, Colors.red),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(height: 1),
+                  const SizedBox(height: 16),
                   // Action Buttons
                   Row(
                     children: [
@@ -288,7 +320,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                           icon: const Icon(Icons.edit, size: 18),
                           label: const Text('Adjust Points'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF00d4ff),
+                            backgroundColor: const Color(0xFF2962FF),
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
@@ -318,18 +350,17 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                   const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton.icon(
+                    child: OutlinedButton.icon(
                       onPressed: () => _viewBettingHistory(userId, name),
                       icon: const Icon(Icons.history, size: 18),
                       label: const Text('View Betting History'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF16213e),
-                        foregroundColor: Colors.white,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF2962FF),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
-                          side: const BorderSide(color: Color(0xFF00d4ff)),
                         ),
+                        side: const BorderSide(color: Color(0xFF2962FF)),
                       ),
                     ),
                   ),
@@ -342,6 +373,30 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
     );
   }
 
+  Widget _buildStatItem(String label, String value, IconData icon, [Color? color]) {
+    return Column(
+      children: [
+        Icon(icon, color: color ?? Colors.grey[700], size: 24),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            color: color ?? Colors.black87,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.grey[600],
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showAdjustPointsDialog(String userId, String userName, int currentPoints) {
     final TextEditingController amountController = TextEditingController();
     String operation = 'add'; // add or deduct
@@ -350,18 +405,36 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: const Color(0xFF16213e),
+          backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text(
             'Adjust Points - $userName',
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'Current Points: $currentPoints',
-                style: const TextStyle(color: Color(0xFF00d4ff), fontSize: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2962FF).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.account_balance_wallet, color: Color(0xFF2962FF)),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Current: $currentPoints Points',
+                      style: const TextStyle(
+                        color: Color(0xFF2962FF),
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 16),
               // Operation Selection
@@ -369,10 +442,10 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                 children: [
                   Expanded(
                     child: RadioListTile<String>(
-                      title: const Text('Add', style: TextStyle(color: Colors.white)),
+                      title: const Text('Add', style: TextStyle(color: Colors.black87)),
                       value: 'add',
                       groupValue: operation,
-                      activeColor: const Color(0xFF00d4ff),
+                      activeColor: const Color(0xFF2962FF),
                       onChanged: (value) {
                         setDialogState(() {
                           operation = value!;
@@ -382,10 +455,10 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                   ),
                   Expanded(
                     child: RadioListTile<String>(
-                      title: const Text('Deduct', style: TextStyle(color: Colors.white)),
+                      title: const Text('Deduct', style: TextStyle(color: Colors.black87)),
                       value: 'deduct',
                       groupValue: operation,
-                      activeColor: const Color(0xFF00d4ff),
+                      activeColor: const Color(0xFF2962FF),
                       onChanged: (value) {
                         setDialogState(() {
                           operation = value!;
@@ -399,16 +472,17 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
               TextField(
                 controller: amountController,
                 keyboardType: TextInputType.number,
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: Colors.black87),
                 decoration: InputDecoration(
                   labelText: 'Amount',
-                  labelStyle: const TextStyle(color: Colors.grey),
+                  labelStyle: TextStyle(color: Colors.grey[700]),
                   filled: true,
-                  fillColor: const Color(0xFF0f3460),
+                  fillColor: Colors.grey[100],
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide.none,
                   ),
+                  prefixIcon: const Icon(Icons.attach_money, color: Color(0xFF2962FF)),
                 ),
               ),
             ],
@@ -423,7 +497,10 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                 final amount = int.tryParse(amountController.text);
                 if (amount == null || amount <= 0) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter a valid amount')),
+                    const SnackBar(
+                      content: Text('Please enter a valid amount'),
+                      backgroundColor: Colors.red,
+                    ),
                   );
                   return;
                 }
@@ -432,7 +509,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                 await _adjustUserPoints(userId, userName, amount, operation, currentPoints);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00d4ff),
+                backgroundColor: const Color(0xFF2962FF),
               ),
               child: const Text('Confirm'),
             ),
@@ -456,13 +533,17 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
 
       if (newPoints < 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cannot deduct more points than user has')),
+          const SnackBar(
+            content: Text('Cannot deduct more points than user has'),
+            backgroundColor: Colors.red,
+          ),
         );
         return;
       }
 
       await _firestore.collection('users').doc(userId).update({
-        'points': newPoints,
+        'totalPoints': newPoints,
+        'lastUpdated': FieldValue.serverTimestamp(),
       });
 
       // Log the transaction
@@ -501,17 +582,26 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF16213e),
+        backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          newStatus ? 'Ban User?' : 'Unban User?',
-          style: const TextStyle(color: Colors.white),
+        title: Row(
+          children: [
+            Icon(
+              newStatus ? Icons.block : Icons.check_circle,
+              color: newStatus ? Colors.red : Colors.green,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              newStatus ? 'Ban User?' : 'Unban User?',
+              style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
         content: Text(
           newStatus
-              ? 'Are you sure you want to ban $userName? They will not be able to place bets.'
-              : 'Are you sure you want to unban $userName? They will be able to place bets again.',
-          style: const TextStyle(color: Colors.grey),
+              ? 'Are you sure you want to ban $userName? They will not be able to login or place bets.'
+              : 'Are you sure you want to unban $userName? They will be able to login and place bets again.',
+          style: TextStyle(color: Colors.grey[700]),
         ),
         actions: [
           TextButton(
@@ -524,6 +614,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
               try {
                 await _firestore.collection('users').doc(userId).update({
                   'isBanned': newStatus,
+                  'lastUpdated': FieldValue.serverTimestamp(),
                 });
 
                 // Log the action
@@ -554,7 +645,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: newStatus ? Colors.red : Colors.green,
             ),
-            child: Text(newStatus ? 'Ban' : 'Unban'),
+            child: Text(newStatus ? 'Ban User' : 'Unban User'),
           ),
         ],
       ),
@@ -588,12 +679,30 @@ class UserBettingHistoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1a1a2e),
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        backgroundColor: const Color(0xFF16213e),
-        title: Text(
-          '$userName - Betting History',
-          style: const TextStyle(color: Colors.white, fontSize: 18),
+        backgroundColor: Colors.white,
+        elevation: 1,
+        iconTheme: const IconThemeData(color: Color(0xFF2962FF)),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              userName,
+              style: const TextStyle(
+                color: Color(0xFF2962FF),
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Text(
+              'Betting History',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+              ),
+            ),
+          ],
         ),
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -614,15 +723,22 @@ class UserBettingHistoryScreen extends StatelessWidget {
 
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(color: Color(0xFF00d4ff)),
+              child: CircularProgressIndicator(color: Color(0xFF2962FF)),
             );
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(
-              child: Text(
-                'No betting history found',
-                style: TextStyle(color: Colors.grey, fontSize: 16),
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.history, size: 64, color: Colors.grey[400]),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'No betting history found',
+                    style: TextStyle(color: Colors.grey, fontSize: 16),
+                  ),
+                ],
               ),
             );
           }
@@ -650,27 +766,38 @@ class UserBettingHistoryScreen extends StatelessWidget {
 
     Color statusColor;
     IconData statusIcon;
+    String statusText;
     switch (status) {
       case 'won':
         statusColor = Colors.green;
         statusIcon = Icons.check_circle;
+        statusText = 'WON';
         break;
       case 'lost':
         statusColor = Colors.red;
         statusIcon = Icons.cancel;
+        statusText = 'LOST';
         break;
       default:
         statusColor = Colors.orange;
         statusIcon = Icons.access_time;
+        statusText = 'PENDING';
     }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF16213e),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: statusColor.withOpacity(0.3), width: 1),
+        border: Border.all(color: statusColor.withOpacity(0.2), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -678,64 +805,83 @@ class UserBettingHistoryScreen extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0f3460),
-                  borderRadius: BorderRadius.circular(6),
+                  color: const Color(0xFF2962FF).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   gameType,
                   style: const TextStyle(
-                    color: Color(0xFF00d4ff),
+                    color: Color(0xFF2962FF),
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
               const Spacer(),
-              Icon(statusIcon, color: statusColor, size: 20),
-              const SizedBox(width: 4),
-              Text(
-                status.toUpperCase(),
-                style: TextStyle(
-                  color: statusColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(statusIcon, color: statusColor, size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      statusText,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Text(
             matchTitle,
             style: const TextStyle(
-              color: Colors.white,
+              color: Colors.black87,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  const Icon(Icons.account_balance_wallet,
-                      color: Color(0xFF00d4ff), size: 16),
-                  const SizedBox(width: 4),
-                  Text(
-                    '$betAmount Points',
-                    style: const TextStyle(
-                      color: Color(0xFF00d4ff),
-                      fontWeight: FontWeight.bold,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.account_balance_wallet,
+                        color: Color(0xFF2962FF), size: 18),
+                    const SizedBox(width: 6),
+                    Text(
+                      '$betAmount Points',
+                      style: const TextStyle(
+                        color: Color(0xFF2962FF),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               if (timestamp != null)
                 Text(
                   _formatTimestamp(timestamp),
-                  style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
                 ),
             ],
           ),

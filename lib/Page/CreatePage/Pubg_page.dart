@@ -11,7 +11,6 @@ class PUBGCreatePage extends StatefulWidget {
 }
 
 class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProviderStateMixin {
-  // Dropdown selections
   String? selectedMode;
   String? selectedMap;
   String? selectedTeamSize;
@@ -19,21 +18,16 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
   String? selectedWeatherMode;
   String? selectedZoneMode;
 
-  // Textfield controller for points
   TextEditingController pointsController = TextEditingController();
 
-  // Firebase instances
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Loading state
   bool _isCreating = false;
 
-  // Animation
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
-  // Dropdown options
   final List<String> modes = [
     "Classic",
     "Arena",
@@ -70,7 +64,6 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
     super.dispose();
   }
 
-  // Get team size options based on selected mode
   List<String> get teamSizeOptions {
     if (selectedMode == "Classic") {
       return ["Solo", "Duo", "Squad"];
@@ -80,14 +73,12 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
     return [];
   }
 
-  // Get available maps for selected mode
   List<String> get availableMaps {
     if (selectedMode == null) return [];
     return mapsByMode[selectedMode] ?? [];
   }
 
   Future<void> _createMatch() async {
-    // Validation
     if (selectedMode == null) {
       _showError("Please select a mode");
       return;
@@ -117,27 +108,56 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
       return;
     }
 
-    // Get current user
     User? currentUser = _auth.currentUser;
     if (currentUser == null) {
       _showError("You must be logged in to create a match");
       return;
     }
 
+    // Parse the points
+    int matchPoints = int.tryParse(pointsController.text.trim()) ?? 0;
+
+    if (matchPoints <= 0) {
+      _showError("Please enter a valid point amount");
+      return;
+    }
+
     setState(() => _isCreating = true);
 
     try {
-      // Get user details from Firestore
+      // Get user document
       DocumentSnapshot userDoc = await _firestore
           .collection('users')
           .doc(currentUser.uid)
           .get();
 
-      String userName = userDoc.exists && userDoc['name'] != null
-          ? userDoc['name']
-          : currentUser.displayName ?? 'Unknown User';
+      if (!userDoc.exists) {
+        _showError("User profile not found");
+        setState(() => _isCreating = false);
+        return;
+      }
 
-      // Prepare match data
+      String userName = userDoc['name'] ?? currentUser.displayName ?? 'Unknown User';
+
+      // CHECK USER'S CURRENT POINTS
+      int currentPoints = userDoc['points'] ?? 0;
+
+      // Check if user has enough points
+      if (currentPoints < matchPoints) {
+        _showError("Insufficient points! You have $currentPoints points but need $matchPoints");
+        setState(() => _isCreating = false);
+        return;
+      }
+
+      // DEDUCT POINTS FROM USER
+      int newPoints = currentPoints - matchPoints;
+
+      await _firestore.collection('users').doc(currentUser.uid).update({
+        'points': newPoints,
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Create match data
       Map<String, dynamic> matchData = {
         'game': 'PUBG',
         'mode': selectedMode,
@@ -146,7 +166,7 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
         'perspective': selectedPerspective,
         'weatherMode': selectedWeatherMode ?? 'N/A',
         'zoneMode': selectedZoneMode ?? 'N/A',
-        'points': int.parse(pointsController.text.trim()),
+        'points': matchPoints,
         'participants': [],
         'createdBy': {
           'userId': currentUser.uid,
@@ -154,15 +174,14 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
           'userEmail': currentUser.email,
         },
         'createdAt': FieldValue.serverTimestamp(),
-        'status': 'active',
+        'status': 'pending',
       };
 
-      // Save to Firebase
       await _firestore.collection('matches').add(matchData);
 
       if (mounted) {
         Fluttertoast.showToast(
-          msg: "🎯 PUBG Match Created!",
+          msg: "🎯 Match Created! $matchPoints points deducted. Balance: $newPoints",
           toastLength: Toast.LENGTH_LONG,
           gravity: ToastGravity.BOTTOM,
           backgroundColor: const Color(0xFF10B981),
@@ -170,7 +189,6 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
           fontSize: 15.0,
         );
 
-        // Show success dialog
         showDialog(
           context: context,
           barrierDismissible: false,
@@ -188,14 +206,14 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
-                    Icons.check_circle,
+                    Icons.check_circle_rounded,
                     color: Color(0xFF10B981),
                     size: 64,
                   ),
                 ),
                 const SizedBox(height: 20),
                 const Text(
-                  "Match Created!",
+                  "Match Submitted!",
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -204,7 +222,7 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  "Your $selectedMode match on $selectedMap is now live!",
+                  "Your $selectedMode match on $selectedMap is pending approval.\n\n$matchPoints points deducted.\nRemaining balance: $newPoints points",
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
@@ -227,7 +245,7 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
                       ),
                     ),
                     child: const Text(
-                      "View All Matches",
+                      "Done",
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -240,7 +258,6 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
           ),
         );
 
-        // Clear form
         setState(() {
           selectedMode = null;
           selectedMap = null;
@@ -305,7 +322,6 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header Card
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
@@ -365,7 +381,6 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
 
               const SizedBox(height: 28),
 
-              // Mode Selection
               _buildCard(
                 title: "Game Mode",
                 icon: Icons.gamepad_rounded,
@@ -378,7 +393,6 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
                 ),
               ),
 
-              // Map Selection
               if (selectedMode != null && availableMaps.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 _buildCard(
@@ -394,7 +408,6 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
                 ),
               ],
 
-              // Team Size
               if (selectedMode != null && teamSizeOptions.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 _buildCard(
@@ -419,7 +432,6 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
 
               const SizedBox(height: 16),
 
-              // Perspective
               _buildCard(
                 title: "Perspective",
                 icon: Icons.remove_red_eye_rounded,
@@ -439,7 +451,6 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
                 ),
               ),
 
-              // Weather Mode (only for Classic)
               if (selectedMode == "Classic") ...[
                 const SizedBox(height: 16),
                 _buildCard(
@@ -455,7 +466,6 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
                 ),
               ],
 
-              // Zone Mode (only for Classic)
               if (selectedMode == "Classic") ...[
                 const SizedBox(height: 16),
                 _buildCard(
@@ -480,7 +490,6 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
 
               const SizedBox(height: 16),
 
-              // Points
               _buildCard(
                 title: "Match Points",
                 icon: Icons.stars_rounded,
@@ -523,7 +532,6 @@ class _PUBGCreatePageState extends State<PUBGCreatePage> with SingleTickerProvid
 
               const SizedBox(height: 32),
 
-              // Create Button
               Container(
                 width: double.infinity,
                 height: 58,
