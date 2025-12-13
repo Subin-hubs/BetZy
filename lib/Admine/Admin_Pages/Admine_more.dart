@@ -1,16 +1,18 @@
+// PART 1 - Class Definition, State Variables, and Init Methods
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
-class AdmineMore extends StatefulWidget {
-  const AdmineMore({super.key});
+class SettingsMore extends StatefulWidget {
+  const SettingsMore({super.key});
 
   @override
-  State<AdmineMore> createState() => _AdmineMoreState();
+  State<SettingsMore> createState() => _SettingsMoreState();
 }
 
-class _AdmineMoreState extends State<AdmineMore> {
+class _SettingsMoreState extends State<SettingsMore> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final Color primaryColor = const Color(0xFF6C63FF);
@@ -19,32 +21,32 @@ class _AdmineMoreState extends State<AdmineMore> {
   final Color warningColor = const Color(0xFFFFA726);
 
   User? currentUser;
-  Map<String, dynamic>? adminData;
+  Map<String, dynamic>? userData;
   bool isLoading = true;
-  int totalUsers = 0;
-  int totalMatches = 0;
-  int activeMatches = 0;
-  int totalRevenue = 0;
+  bool notificationsEnabled = true;
+  bool darkModeEnabled = false;
+  bool soundEnabled = true;
+  bool vibrationEnabled = true;
 
   @override
   void initState() {
     super.initState();
-    _loadAdminData();
-    _loadDashboardStats();
+    _loadUserData();
+    _loadSettings();
   }
 
-  Future<void> _loadAdminData() async {
+  Future<void> _loadUserData() async {
     currentUser = _auth.currentUser;
     if (currentUser != null) {
       try {
-        DocumentSnapshot adminDoc = await _firestore
-            .collection('admins')
+        DocumentSnapshot userDoc = await _firestore
+            .collection('users')
             .doc(currentUser!.uid)
             .get();
 
-        if (adminDoc.exists) {
+        if (userDoc.exists) {
           setState(() {
-            adminData = adminDoc.data() as Map<String, dynamic>?;
+            userData = userDoc.data() as Map<String, dynamic>?;
             isLoading = false;
           });
         } else {
@@ -58,41 +60,58 @@ class _AdmineMoreState extends State<AdmineMore> {
     }
   }
 
-  Future<void> _loadDashboardStats() async {
-    try {
-      // Get total users
-      QuerySnapshot usersSnapshot = await _firestore.collection('users').get();
+  Future<void> _loadSettings() async {
+    if (currentUser != null) {
+      try {
+        DocumentSnapshot settingsDoc = await _firestore
+            .collection('users')
+            .doc(currentUser!.uid)
+            .collection('settings')
+            .doc('preferences')
+            .get();
 
-      // Get total matches
-      QuerySnapshot matchesSnapshot = await _firestore.collection('matches').get();
+        if (settingsDoc.exists) {
+          var settings = settingsDoc.data() as Map<String, dynamic>;
+          setState(() {
+            notificationsEnabled = settings['notifications'] ?? true;
+            darkModeEnabled = settings['darkMode'] ?? false;
+            soundEnabled = settings['sound'] ?? true;
+            vibrationEnabled = settings['vibration'] ?? true;
+          });
+        }
+      } catch (e) {
+        print("Error loading settings: $e");
+      }
+    }
+  }
 
-      // Get active matches
-      QuerySnapshot activeMatchesSnapshot = await _firestore
-          .collection('matches')
-          .where('status', isEqualTo: 'active')
-          .get();
-
-      setState(() {
-        totalUsers = usersSnapshot.docs.length;
-        totalMatches = matchesSnapshot.docs.length;
-        activeMatches = activeMatchesSnapshot.docs.length;
-        // Calculate total revenue from matches
-        totalRevenue = matchesSnapshot.docs.fold(0, (sum, doc) {
-          var data = doc.data() as Map<String, dynamic>;
-          return sum + (data['points'] ?? 0) as int;
-        });
-      });
-    } catch (e) {
-      print("Error loading stats: $e");
+  Future<void> _saveSettings() async {
+    if (currentUser != null) {
+      try {
+        await _firestore
+            .collection('users')
+            .doc(currentUser!.uid)
+            .collection('settings')
+            .doc('preferences')
+            .set({
+          'notifications': notificationsEnabled,
+          'darkMode': darkModeEnabled,
+          'sound': soundEnabled,
+          'vibration': vibrationEnabled,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (e) {
+        print("Error saving settings: $e");
+      }
     }
   }
 
   void _showEditProfileDialog() {
     final nameController = TextEditingController(
-      text: adminData?['name'] ?? currentUser?.displayName ?? '',
+      text: userData?['name'] ?? currentUser?.displayName ?? '',
     );
-    final roleController = TextEditingController(
-      text: adminData?['role'] ?? 'Admin',
+    final phoneController = TextEditingController(
+      text: userData?['phone'] ?? '',
     );
 
     showDialog(
@@ -109,10 +128,10 @@ class _AdmineMoreState extends State<AdmineMore> {
                 color: primaryColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(Icons.admin_panel_settings, color: primaryColor),
+              child: Icon(Icons.person, color: primaryColor),
             ),
             const SizedBox(width: 10),
-            const Text("Edit Admin Profile"),
+            const Text("Edit Profile"),
           ],
         ),
         content: Column(
@@ -130,13 +149,14 @@ class _AdmineMoreState extends State<AdmineMore> {
             ),
             const SizedBox(height: 16),
             TextField(
-              controller: roleController,
+              controller: phoneController,
+              keyboardType: TextInputType.phone,
               decoration: InputDecoration(
-                labelText: "Role",
+                labelText: "Phone Number",
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                prefixIcon: const Icon(Icons.badge),
+                prefixIcon: const Icon(Icons.phone),
               ),
             ),
           ],
@@ -158,16 +178,17 @@ class _AdmineMoreState extends State<AdmineMore> {
 
               try {
                 await _firestore
-                    .collection('admins')
+                    .collection('users')
                     .doc(currentUser!.uid)
                     .set({
                   'name': nameController.text.trim(),
-                  'role': roleController.text.trim(),
+                  'phone': phoneController.text.trim(),
                   'email': currentUser!.email,
+                  'updatedAt': FieldValue.serverTimestamp(),
                 }, SetOptions(merge: true));
 
                 await currentUser!.updateDisplayName(nameController.text.trim());
-                await _loadAdminData();
+                await _loadUserData();
 
                 if (mounted) {
                   Navigator.pop(context);
@@ -196,20 +217,211 @@ class _AdmineMoreState extends State<AdmineMore> {
     );
   }
 
-  void _navigateToUserManagement() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => UserManagementPage(),
+  void _showChangePasswordDialog() {
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: accentColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.lock, color: accentColor),
+            ),
+            const SizedBox(width: 10),
+            const Text("Change Password"),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: currentPasswordController,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: "Current Password",
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                prefixIcon: const Icon(Icons.lock_outline),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: newPasswordController,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: "New Password",
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                prefixIcon: const Icon(Icons.lock),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: confirmPasswordController,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: "Confirm New Password",
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                prefixIcon: const Icon(Icons.lock),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (newPasswordController.text != confirmPasswordController.text) {
+                Fluttertoast.showToast(
+                  msg: "Passwords don't match",
+                  backgroundColor: Colors.red.shade600,
+                );
+                return;
+              }
+
+              if (newPasswordController.text.length < 6) {
+                Fluttertoast.showToast(
+                  msg: "Password must be at least 6 characters",
+                  backgroundColor: Colors.red.shade600,
+                );
+                return;
+              }
+
+              try {
+                // Re-authenticate user
+                AuthCredential credential = EmailAuthProvider.credential(
+                  email: currentUser!.email!,
+                  password: currentPasswordController.text,
+                );
+                await currentUser!.reauthenticateWithCredential(credential);
+
+                // Update password
+                await currentUser!.updatePassword(newPasswordController.text);
+
+                if (mounted) {
+                  Navigator.pop(context);
+                  Fluttertoast.showToast(
+                    msg: "Password changed successfully!",
+                    backgroundColor: Colors.green.shade600,
+                  );
+                }
+              } catch (e) {
+                Fluttertoast.showToast(
+                  msg: "Error changing password. Check current password.",
+                  backgroundColor: Colors.red.shade600,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: accentColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text("Change Password"),
+          ),
+        ],
       ),
     );
   }
 
-  void _navigateToMatchManagement() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => MatchManagementPage(),
+  void _showDeleteAccountDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red.shade600),
+            const SizedBox(width: 10),
+            const Text("Delete Account"),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.delete_forever,
+              size: 70,
+              color: Colors.red.shade300,
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              "Are you sure you want to delete your account?",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              "This action cannot be undone. All your data will be permanently deleted.",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                // Delete user data from Firestore
+                await _firestore.collection('users').doc(currentUser!.uid).delete();
+
+                // Delete user account
+                await currentUser!.delete();
+
+                if (mounted) {
+                  Navigator.pop(context);
+                  Fluttertoast.showToast(
+                    msg: "Account deleted successfully",
+                    backgroundColor: Colors.green.shade600,
+                  );
+                }
+              } catch (e) {
+                Fluttertoast.showToast(
+                  msg: "Error deleting account",
+                  backgroundColor: Colors.red.shade600,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text("Delete Account"),
+          ),
+        ],
       ),
     );
   }
@@ -280,7 +492,7 @@ class _AdmineMoreState extends State<AdmineMore> {
             const Text("Logout"),
           ],
         ),
-        content: const Text("Are you sure you want to logout from admin panel?"),
+        content: const Text("Are you sure you want to logout?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -319,39 +531,35 @@ class _AdmineMoreState extends State<AdmineMore> {
     );
   }
 
+// PART 2 - Build Method and UI Widgets
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
         title: const Text(
-          "Admin Dashboard",
+          "Settings",
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () => _showComingSoonDialog("Notifications"),
-          ),
-        ],
       ),
       body: isLoading
           ? Center(child: CircularProgressIndicator(color: primaryColor))
           : RefreshIndicator(
         onRefresh: () async {
-          await _loadAdminData();
-          await _loadDashboardStats();
+          await _loadUserData();
+          await _loadSettings();
         },
         color: primaryColor,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
             children: [
-              // Admin Profile Header
+              // Profile Header
               Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
@@ -363,91 +571,70 @@ class _AdmineMoreState extends State<AdmineMore> {
                 ),
                 child: Column(
                   children: [
-                    const SizedBox(height: 20),
-                    // Avatar with badge
-                    Stack(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 4),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
+                    const SizedBox(height: 30),
+                    // Avatar
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 4),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
                           ),
-                          child: CircleAvatar(
-                            radius: 55,
-                            backgroundColor: Colors.white,
-                            child: Icon(
-                              Icons.admin_panel_settings,
-                              size: 55,
-                              color: primaryColor,
-                            ),
-                          ),
+                        ],
+                      ),
+                      child: CircleAvatar(
+                        radius: 50,
+                        backgroundColor: Colors.white,
+                        child: Icon(
+                          Icons.person,
+                          size: 50,
+                          color: primaryColor,
                         ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: successColor,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 3),
-                            ),
-                            child: const Icon(
-                              Icons.verified,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                     const SizedBox(height: 16),
-                    // Admin Name
+                    // User Name
                     Text(
-                      adminData?['name'] ??
+                      userData?['name'] ??
                           currentUser?.displayName ??
-                          'Admin',
+                          'User',
                       style: const TextStyle(
-                        fontSize: 26,
+                        fontSize: 24,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
                     ),
                     const SizedBox(height: 6),
-                    // Admin Role
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        adminData?['role'] ?? 'Super Admin',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Admin Email
+                    // User Email
                     Text(
                       currentUser?.email ?? 'No email',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.white.withOpacity(0.9),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Edit Profile Button
+                    TextButton.icon(
+                      onPressed: _showEditProfileDialog,
+                      icon: const Icon(Icons.edit, size: 18, color: Colors.white),
+                      label: const Text(
+                        "Edit Profile",
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.white.withOpacity(0.2),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 8,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 30),
@@ -457,181 +644,179 @@ class _AdmineMoreState extends State<AdmineMore> {
 
               const SizedBox(height: 20),
 
-              // Dashboard Stats
+              // Settings Content
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Column(
                   children: [
-                    _buildSectionTitle("Dashboard Overview", Icons.dashboard),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildStatCard(
-                            title: "Total Users",
-                            value: totalUsers.toString(),
-                            icon: Icons.people,
-                            color: primaryColor,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildStatCard(
-                            title: "Active Matches",
-                            value: activeMatches.toString(),
-                            icon: Icons.sports_esports,
-                            color: successColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildStatCard(
-                            title: "Total Matches",
-                            value: totalMatches.toString(),
-                            icon: Icons.history,
-                            color: warningColor,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildStatCard(
-                            title: "Total Points",
-                            value: totalRevenue.toString(),
-                            icon: Icons.stars,
-                            color: accentColor,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 30),
-
-                    // Management Section
-                    _buildSectionTitle("Management", Icons.settings),
+                    // App Preferences
+                    _buildSectionTitle("App Preferences", Icons.tune),
                     _buildMenuCard([
-                      _buildMenuItem(
-                        icon: Icons.people_outline,
-                        title: "User Management",
-                        subtitle: "Manage users and permissions",
-                        onTap: _navigateToUserManagement,
+                      _buildSwitchTile(
+                        icon: Icons.notifications_outlined,
+                        title: "Notifications",
+                        subtitle: "Receive push notifications",
+                        value: notificationsEnabled,
+                        onChanged: (value) {
+                          setState(() => notificationsEnabled = value);
+                          _saveSettings();
+                        },
                         color: primaryColor,
                       ),
                       _buildDivider(),
-                      _buildMenuItem(
-                        icon: Icons.sports_esports_outlined,
-                        title: "Match Management",
-                        subtitle: "Monitor and control matches",
-                        onTap: _navigateToMatchManagement,
+                      _buildSwitchTile(
+                        icon: Icons.dark_mode_outlined,
+                        title: "Dark Mode",
+                        subtitle: "Enable dark theme",
+                        value: darkModeEnabled,
+                        onChanged: (value) {
+                          setState(() => darkModeEnabled = value);
+                          _saveSettings();
+                        },
+                        color: Colors.grey.shade700,
+                      ),
+                      _buildDivider(),
+                      _buildSwitchTile(
+                        icon: Icons.volume_up_outlined,
+                        title: "Sound Effects",
+                        subtitle: "Enable sound effects",
+                        value: soundEnabled,
+                        onChanged: (value) {
+                          setState(() => soundEnabled = value);
+                          _saveSettings();
+                        },
                         color: successColor,
                       ),
                       _buildDivider(),
-                      _buildMenuItem(
-                        icon: Icons.receipt_long,
-                        title: "Transaction History",
-                        subtitle: "View all transactions",
-                        onTap: () => _showComingSoonDialog("Transaction History"),
-                        color: warningColor,
-                      ),
-                      _buildDivider(),
-                      _buildMenuItem(
-                        icon: Icons.flag_outlined,
-                        title: "Reports & Flags",
-                        subtitle: "Handle user reports",
-                        onTap: () => _showComingSoonDialog("Reports & Flags"),
-                        color: accentColor,
-                      ),
-                    ]),
-
-                    const SizedBox(height: 20),
-
-                    // Analytics Section
-                    _buildSectionTitle("Analytics", Icons.analytics),
-                    _buildMenuCard([
-                      _buildMenuItem(
-                        icon: Icons.bar_chart,
-                        title: "Platform Statistics",
-                        subtitle: "Detailed analytics and insights",
-                        onTap: () => _showComingSoonDialog("Platform Statistics"),
-                        color: primaryColor,
-                      ),
-                      _buildDivider(),
-                      _buildMenuItem(
-                        icon: Icons.trending_up,
-                        title: "Growth Metrics",
-                        subtitle: "User and revenue growth",
-                        onTap: () => _showComingSoonDialog("Growth Metrics"),
-                        color: successColor,
-                      ),
-                      _buildDivider(),
-                      _buildMenuItem(
-                        icon: Icons.insights,
-                        title: "User Insights",
-                        subtitle: "Behavior and engagement data",
-                        onTap: () => _showComingSoonDialog("User Insights"),
+                      _buildSwitchTile(
+                        icon: Icons.vibration,
+                        title: "Vibration",
+                        subtitle: "Enable vibration feedback",
+                        value: vibrationEnabled,
+                        onChanged: (value) {
+                          setState(() => vibrationEnabled = value);
+                          _saveSettings();
+                        },
                         color: warningColor,
                       ),
                     ]),
 
                     const SizedBox(height: 20),
 
-                    // Settings Section
-                    _buildSectionTitle("Settings", Icons.settings_outlined),
+                    // Account Settings
+                    _buildSectionTitle("Account", Icons.account_circle_outlined),
                     _buildMenuCard([
                       _buildMenuItem(
-                        icon: Icons.admin_panel_settings_outlined,
+                        icon: Icons.person_outline,
                         title: "Edit Profile",
-                        subtitle: "Update admin information",
+                        subtitle: "Update your personal information",
                         onTap: _showEditProfileDialog,
                         color: primaryColor,
                       ),
                       _buildDivider(),
                       _buildMenuItem(
-                        icon: Icons.security,
-                        title: "Security Settings",
-                        subtitle: "Password and authentication",
-                        onTap: () => _showComingSoonDialog("Security Settings"),
+                        icon: Icons.lock_outline,
+                        title: "Change Password",
+                        subtitle: "Update your password",
+                        onTap: _showChangePasswordDialog,
                         color: accentColor,
                       ),
                       _buildDivider(),
                       _buildMenuItem(
-                        icon: Icons.tune,
-                        title: "Platform Settings",
-                        subtitle: "Configure app settings",
-                        onTap: () => _showComingSoonDialog("Platform Settings"),
+                        icon: Icons.email_outlined,
+                        title: "Email Preferences",
+                        subtitle: "Manage email notifications",
+                        onTap: () => _showComingSoonDialog("Email Preferences"),
                         color: successColor,
-                      ),
-                      _buildDivider(),
-                      _buildMenuItem(
-                        icon: Icons.backup,
-                        title: "Backup & Restore",
-                        subtitle: "Data management",
-                        onTap: () => _showComingSoonDialog("Backup & Restore"),
-                        color: warningColor,
                       ),
                     ]),
 
                     const SizedBox(height: 20),
 
-                    // System Section
-                    _buildSectionTitle("System", Icons.computer),
+                    // Privacy & Security
+                    _buildSectionTitle("Privacy & Security", Icons.security),
                     _buildMenuCard([
                       _buildMenuItem(
-                        icon: Icons.bug_report_outlined,
-                        title: "System Logs",
-                        subtitle: "View system activity",
-                        onTap: () => _showComingSoonDialog("System Logs"),
-                        color: Colors.grey.shade700,
+                        icon: Icons.privacy_tip_outlined,
+                        title: "Privacy Policy",
+                        subtitle: "Read our privacy policy",
+                        onTap: () => _showComingSoonDialog("Privacy Policy"),
+                        color: primaryColor,
                       ),
                       _buildDivider(),
                       _buildMenuItem(
-                        icon: Icons.info_outline,
-                        title: "App Information",
-                        subtitle: "Version and details",
-                        onTap: _showAboutDialog,
+                        icon: Icons.shield_outlined,
+                        title: "Security Settings",
+                        subtitle: "Two-factor authentication",
+                        onTap: () => _showComingSoonDialog("Security Settings"),
+                        color: successColor,
+                      ),
+                      _buildDivider(),
+                      _buildMenuItem(
+                        icon: Icons.block,
+                        title: "Blocked Users",
+                        subtitle: "Manage blocked accounts",
+                        onTap: () => _showComingSoonDialog("Blocked Users"),
+                        color: Colors.red.shade600,
+                      ),
+                    ]),
+
+                    const SizedBox(height: 20),
+
+                    // Support & Help
+                    _buildSectionTitle("Support & Help", Icons.help_outline),
+                    _buildMenuCard([
+                      _buildMenuItem(
+                        icon: Icons.contact_support_outlined,
+                        title: "Help Center",
+                        subtitle: "Get help and support",
+                        onTap: () => _showComingSoonDialog("Help Center"),
+                        color: primaryColor,
+                      ),
+                      _buildDivider(),
+                      _buildMenuItem(
+                        icon: Icons.feedback_outlined,
+                        title: "Send Feedback",
+                        subtitle: "Share your thoughts",
+                        onTap: () => _showComingSoonDialog("Send Feedback"),
+                        color: warningColor,
+                      ),
+                      _buildDivider(),
+                      _buildMenuItem(
+                        icon: Icons.bug_report_outlined,
+                        title: "Report a Problem",
+                        subtitle: "Report bugs and issues",
+                        onTap: () => _showComingSoonDialog("Report a Problem"),
+                        color: accentColor,
+                      ),
+                    ]),
+
+                    const SizedBox(height: 20),
+
+                    // About
+                    _buildSectionTitle("About", Icons.info_outline),
+                    _buildMenuCard([
+                      _buildMenuItem(
+                        icon: Icons.description_outlined,
+                        title: "Terms of Service",
+                        subtitle: "Read our terms",
+                        onTap: () => _showComingSoonDialog("Terms of Service"),
+                        color: primaryColor,
+                      ),
+                      _buildDivider(),
+                      _buildMenuItem(
+                        icon: Icons.star_outline,
+                        title: "Rate App",
+                        subtitle: "Rate us on the store",
+                        onTap: () => _showComingSoonDialog("Rate App"),
+                        color: warningColor,
+                      ),
+                      _buildDivider(),
+                      _buildMenuItem(
+                        icon: Icons.info,
+                        title: "App Version",
+                        subtitle: "v1.0.0",
+                        onTap: null,
                         color: Colors.grey.shade700,
                       ),
                     ]),
@@ -665,7 +850,7 @@ class _AdmineMoreState extends State<AdmineMore> {
                         ),
                         icon: const Icon(Icons.logout, size: 22),
                         label: const Text(
-                          "Logout from Admin Panel",
+                          "Logout",
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -676,21 +861,14 @@ class _AdmineMoreState extends State<AdmineMore> {
 
                     const SizedBox(height: 20),
 
-                    // App Version
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        "Admin Panel v1.0.0",
+                    // Delete Account Button
+                    TextButton.icon(
+                      onPressed: _showDeleteAccountDialog,
+                      icon: Icon(Icons.delete_forever, color: Colors.red.shade600),
+                      label: Text(
+                        "Delete Account",
                         style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 12,
+                          color: Colors.red.shade600,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -731,65 +909,9 @@ class _AdmineMoreState extends State<AdmineMore> {
     );
   }
 
-  Widget _buildStatCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [color, color.withOpacity(0.7)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: Colors.white, size: 24),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.white.withOpacity(0.9),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildMenuCard(List<Widget> children) {
     return Container(
+      margin: const EdgeInsets.only(top: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -844,10 +966,59 @@ class _AdmineMoreState extends State<AdmineMore> {
         ),
       )
           : null,
-      trailing: Icon(
+      trailing: onTap != null
+          ? Icon(
         Icons.arrow_forward_ios,
         size: 16,
         color: Colors.grey.shade400,
+      )
+          : null,
+    );
+  }
+
+  Widget _buildSwitchTile({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+    required Color color,
+  }) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      leading: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [color.withOpacity(0.2), color.withOpacity(0.1)],
+          ),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Icon(icon, color: color, size: 24),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: subtitle != null
+          ? Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(
+          subtitle,
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.grey.shade600,
+          ),
+        ),
+      )
+          : null,
+      trailing: Switch(
+        value: value,
+        onChanged: onChanged,
+        activeColor: color,
       ),
     );
   }
@@ -858,131 +1029,6 @@ class _AdmineMoreState extends State<AdmineMore> {
       indent: 76,
       endIndent: 20,
       color: Colors.grey.shade200,
-    );
-  }
-
-  void _showAboutDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(Icons.info_outline, color: primaryColor),
-            ),
-            const SizedBox(width: 10),
-            const Text("About Admin Panel"),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Betzy - Admin Dashboard",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildInfoRow("Version:", "1.0.0"),
-                  const SizedBox(height: 8),
-                  _buildInfoRow("Platform:", "Gaming Match Management"),
-                  const SizedBox(height: 8),
-                  _buildInfoRow("Access Level:", "Super Admin"),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              "Complete control panel for managing users, matches, and platform operations.",
-              style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Close"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey.shade600,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// User Management Page Placeholder
-class UserManagementPage extends StatelessWidget {
-  const UserManagementPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("User Management"),
-        backgroundColor: const Color(0xFF6C63FF),
-        foregroundColor: Colors.white,
-      ),
-      body: Center(
-        child: Text("User Management Page - To be implemented"),
-      ),
-    );
-  }
-}
-
-// Match Management Page Placeholder
-class MatchManagementPage extends StatelessWidget {
-  const MatchManagementPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Match Management"),
-        backgroundColor: const Color(0xFF00D9A3),
-        foregroundColor: Colors.white,
-      ),
-      body: Center(
-        child: Text("Match Management Page - To be implemented"),
-      ),
     );
   }
 }

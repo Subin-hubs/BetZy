@@ -1,4 +1,4 @@
-import 'package:betting_app/Page/Auth/LoginPage.dart';
+// 1. UPDATED SIGNUP PAGE (signup_page.dart)
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -15,12 +15,10 @@ class _SignupPageState extends State<SignupPage> {
   bool _isLoading = false;
   final _formKey = GlobalKey<FormState>();
 
-  // Controllers
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  // Firebase instances
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -32,8 +30,6 @@ class _SignupPageState extends State<SignupPage> {
     super.dispose();
   }
 
-  // Sign Up with Email and Password
-  // Sign Up with Email and Password
   Future<void> _signUpWithEmail() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -50,67 +46,110 @@ class _SignupPageState extends State<SignupPage> {
         password: password,
       );
 
-      // Update display name
       await userCredential.user?.updateDisplayName(name);
-
       final userId = userCredential.user?.uid;
 
-      // Check if this is an admin signup
+      // Check if admin email
       if (_isAdminEmail(email)) {
-        // Create ADMIN record - no game fields
-        await _firestore.collection('admin_users').doc(userId).set({
+        // Create PENDING admin request
+        await _firestore.collection('admin_requests').doc(userId).set({
           'name': name,
           'email': email,
-          'createdAt': FieldValue.serverTimestamp(),
-          'lastLogin': FieldValue.serverTimestamp(),
+          'status': 'pending',
+          'requestedAt': FieldValue.serverTimestamp(),
           'uid': userId,
         });
 
+        // Sign out the user immediately
+        await _auth.signOut();
+
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Admin account created successfully!'),
-              backgroundColor: Colors.green,
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: const Row(
+                children: [
+                  Icon(Icons.pending_actions, color: Color(0xFFF59E0B), size: 28),
+                  SizedBox(width: 12),
+                  Text('Admin Request Pending'),
+                ],
+              ),
+              content: const Text(
+                'Your admin access request has been submitted. '
+                    'Please wait for approval from an existing admin. '
+                    'You will be notified via email once approved.',
+                style: TextStyle(fontSize: 15),
+              ),
+              actions: [
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context); // Close dialog
+                    Navigator.pop(context); // Go back to login
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2962FF),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('OK'),
+                ),
+              ],
             ),
           );
         }
       } else {
-        // Create USER record - with game fields
+        // Regular user - create immediately
         await _firestore.collection('users').doc(userId).set({
           'name': name,
           'email': email,
-          'totalPoints': 1000,
-          'points': 1000,
+          'points': 0,
+          'totalPoints': 0,
           'wins': 0,
           'losses': 0,
           'gamesPlayed': 0,
           'isBanned': false,
           'createdAt': FieldValue.serverTimestamp(),
           'lastUpdated': FieldValue.serverTimestamp(),
-          'lastLogin': FieldValue.serverTimestamp(),
           'uid': userId,
         });
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Account created successfully! You have 1000 starting points!'),
+              content: Text('Account created successfully!'),
               backgroundColor: Colors.green,
             ),
           );
+          Navigator.pop(context);
         }
+      }
+    } on FirebaseAuthException catch (e) {
+      String message = 'An error occurred';
+      if (e.code == 'weak-password') {
+        message = 'The password is too weak';
+      } else if (e.code == 'email-already-in-use') {
+        message = 'An account already exists with this email';
+      } else if (e.code == 'invalid-email') {
+        message = 'Invalid email address';
       }
 
       if (mounted) {
-        // Navigate back to login
-        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.red),
+        );
       }
-    } on FirebaseAuthException catch (e) {
-      // ... your existing error handling
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-// Add this helper method to check admin email
   bool _isAdminEmail(String email) {
     return email.trim().toLowerCase().endsWith('@admin.com');
   }
@@ -131,7 +170,6 @@ class _SignupPageState extends State<SignupPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Logo
                   Hero(
                     tag: 'logo',
                     child: SizedBox(
@@ -140,7 +178,7 @@ class _SignupPageState extends State<SignupPage> {
                         child: Image.asset(
                           "assests/betzy.png",
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => Icon(
+                          errorBuilder: (_, __, ___) => const Icon(
                             Icons.sports_esports,
                             size: 70,
                             color: primaryColor,
@@ -149,10 +187,7 @@ class _SignupPageState extends State<SignupPage> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 20),
-
-                  // Title
                   const Text(
                     "Create Account",
                     style: TextStyle(
@@ -161,59 +196,38 @@ class _SignupPageState extends State<SignupPage> {
                       color: Colors.black87,
                     ),
                   ),
-
                   const SizedBox(height: 5),
-
                   Text(
-                    "Join us today and get 1000 free points!",
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 14,
-                    ),
+                    "Join us today!",
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
                   ),
-
                   const SizedBox(height: 25),
-
-                  // Full Name Field
                   _buildLabel("Full Name"),
                   _buildTextField(
                     hint: "John Doe",
                     icon: Icons.person_outline,
                     controller: _nameController,
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your name';
-                      }
-                      if (value.length < 3) {
-                        return 'Name must be at least 3 characters';
-                      }
+                      if (value == null || value.isEmpty) return 'Please enter your name';
+                      if (value.length < 3) return 'Name must be at least 3 characters';
                       return null;
                     },
                   ),
-
                   const SizedBox(height: 15),
-
-                  // Email Field
                   _buildLabel("Email"),
                   _buildTextField(
                     hint: "email@example.com",
                     icon: Icons.email_outlined,
                     controller: _emailController,
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your email';
-                      }
-                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                          .hasMatch(value)) {
+                      if (value == null || value.isEmpty) return 'Please enter your email';
+                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
                         return 'Please enter a valid email';
                       }
                       return null;
                     },
                   ),
-
                   const SizedBox(height: 15),
-
-                  // Password Field
                   _buildLabel("Password"),
                   _buildTextField(
                     hint: "••••••••",
@@ -222,28 +236,19 @@ class _SignupPageState extends State<SignupPage> {
                     isPassword: true,
                     controller: _passwordController,
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter a password';
-                      }
-                      if (value.length < 6) {
-                        return 'Password must be at least 6 characters';
-                      }
+                      if (value == null || value.isEmpty) return 'Please enter a password';
+                      if (value.length < 6) return 'Password must be at least 6 characters';
                       return null;
                     },
                   ),
-
                   const SizedBox(height: 25),
-
-                  // Sign Up Button
                   SizedBox(
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryColor,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         elevation: 2,
                       ),
                       onPressed: _isLoading ? null : _signUpWithEmail,
@@ -251,52 +256,28 @@ class _SignupPageState extends State<SignupPage> {
                           ? const SizedBox(
                         height: 20,
                         width: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       )
                           : const Text(
                         "Sign Up",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 30),
-
-                  // Login Link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        "Already have an account? ",
-                        style: TextStyle(color: Colors.grey.shade600),
-                      ),
+                      Text("Already have an account? ", style: TextStyle(color: Colors.grey.shade600)),
                       GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const LoginPage(),
-                            ),
-                          );
-                        },
+                        onTap: () => Navigator.pop(context),
                         child: const Text(
                           "Log In",
-                          style: TextStyle(
-                            color: primaryColor,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 10),
                 ],
               ),
@@ -312,11 +293,7 @@ class _SignupPageState extends State<SignupPage> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         label,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: Colors.black87,
-        ),
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87),
       ),
     );
   }
@@ -346,25 +323,16 @@ class _SignupPageState extends State<SignupPage> {
           suffixIcon: isPassword
               ? IconButton(
             icon: Icon(
-              _isPasswordVisible
-                  ? Icons.visibility
-                  : Icons.visibility_off,
+              _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
               size: 20,
               color: Colors.grey.shade600,
             ),
-            onPressed: () {
-              setState(() {
-                _isPasswordVisible = !_isPasswordVisible;
-              });
-            },
+            onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
           )
               : null,
           border: InputBorder.none,
           errorStyle: const TextStyle(fontSize: 11),
-          contentPadding: const EdgeInsets.symmetric(
-            vertical: 16,
-            horizontal: 15,
-          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 15),
         ),
       ),
     );

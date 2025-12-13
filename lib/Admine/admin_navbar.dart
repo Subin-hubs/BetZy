@@ -30,11 +30,11 @@ class _AdmineMainState extends State<AdmineMain> {
   // Screens
   List<Widget> _buildScreens() {
     return [
+      AdminHomePage(),
       AdminUserManagementScreen(),
-      AdmineDashboard(),
       AdminMatchManagement(),
       AdminTopupPage(),
-      AdmineMore(),
+      SettingsMore(),
     ];
   }
 
@@ -42,81 +42,36 @@ class _AdmineMainState extends State<AdmineMain> {
   List<PersistentBottomNavBarItem> _navBarsItems() {
     return [
       PersistentBottomNavBarItem(
-        icon: const Icon(Icons.home_outlined),
+        icon: const Icon(Icons.home_rounded),
         title: "Home",
         activeColorPrimary: Colors.blueAccent,
         inactiveColorPrimary: Colors.grey,
       ),
       PersistentBottomNavBarItem(
-        icon: const Icon(Icons.leaderboard_outlined),
-        title: "Dashboard",
+        icon: const Icon(Icons.people_rounded),
+        title: "Users",
         activeColorPrimary: Colors.blueAccent,
         inactiveColorPrimary: Colors.grey,
       ),
       PersistentBottomNavBarItem(
-        icon: const Icon(Icons.image_outlined),
-        title: "Media",
+        icon: const Icon(Icons.sports_soccer_rounded),
+        title: "Matches",
         activeColorPrimary: Colors.blueAccent,
         inactiveColorPrimary: Colors.grey,
       ),
       PersistentBottomNavBarItem(
-        icon: const Icon(Icons.card_giftcard_outlined),
-        title: "Redeem",
+        icon: const Icon(Icons.wallet_rounded),
+        title: "Topup",
         activeColorPrimary: Colors.blueAccent,
         inactiveColorPrimary: Colors.grey,
       ),
       PersistentBottomNavBarItem(
-        icon: const Icon(Icons.menu),
+        icon: const Icon(Icons.more_horiz_rounded),
         title: "More",
         activeColorPrimary: Colors.blueAccent,
         inactiveColorPrimary: Colors.grey,
       ),
     ];
-  }
-
-  // Custom NavBar UI (flat, no shadow)
-  Widget _buildCustomNavBar(BuildContext context) {
-    final items = _navBarsItems();
-    final selectedIndex = _controller.index;
-
-    return Container(
-      color: Colors.white, // flat bar background
-      height: 60,
-      child: Row(
-        children: List.generate(items.length, (index) {
-          final item = items[index];
-          final isSelected = index == selectedIndex;
-
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _controller.jumpToTab(index)),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (item.icon is Icon)
-                    Icon(
-                      (item.icon as Icon).icon,
-                      size: 26,
-                      color: isSelected ? Colors.blueAccent : Colors.grey,
-                    ),
-                  if ((item.title ?? "").isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        item.title!,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isSelected ? Colors.blueAccent : Colors.grey,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          );
-        }),
-      ),
-    );
   }
 
   @override
@@ -134,6 +89,98 @@ class _AdmineMainState extends State<AdmineMain> {
         confineToSafeArea: true,
       ),
       bottomNavigationBar: _buildCustomNavBar(context),
+    );
+  }
+  // Custom NavBar UI - Modern design with animations
+  Widget _buildCustomNavBar(BuildContext context) {
+    final items = _navBarsItems();
+    final selectedIndex = _controller.index;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Container(
+          height: 70,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(items.length, (index) {
+              final item = items[index];
+              final isSelected = index == selectedIndex;
+
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _controller.jumpToTab(index)),
+                  behavior: HitTestBehavior.opaque,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Colors.blueAccent.withOpacity(0.1)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeInOut,
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? Colors.blueAccent
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: item.icon is Icon
+                              ? Icon(
+                            (item.icon as Icon).icon,
+                            size: isSelected ? 24 : 26,
+                            color: isSelected
+                                ? Colors.white
+                                : Colors.grey.shade600,
+                          )
+                              : item.icon,
+                        ),
+                        const SizedBox(height: 4),
+                        if ((item.title ?? "").isNotEmpty)
+                          AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 200),
+                            style: TextStyle(
+                              fontSize: isSelected ? 11 : 10,
+                              fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.w500,
+                              color: isSelected
+                                  ? Colors.blueAccent
+                                  : Colors.grey.shade600,
+                            ),
+                            child: Text(
+                              item.title!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+      ),
     );
   }
 }

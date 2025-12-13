@@ -122,6 +122,130 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  // Show admin pending approval dialog
+  void _showAdminPendingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.pending_actions, color: Colors.orange, size: 30),
+              SizedBox(width: 10),
+              Text(
+                'Approval Pending',
+                style: TextStyle(
+                  color: Colors.orange,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Your admin access request is still pending approval.',
+                style: TextStyle(fontSize: 16),
+              ),
+              SizedBox(height: 10),
+              Text(
+                'Please wait for an existing admin to approve your request. You will be notified once approved.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                // Sign out the user
+                _auth.signOut();
+              },
+              child: Text(
+                'OK',
+                style: TextStyle(
+                  color: primaryColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Show admin rejected dialog
+  void _showAdminRejectedDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.cancel, color: Colors.red, size: 30),
+              SizedBox(width: 10),
+              Text(
+                'Request Rejected',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Your admin access request has been rejected.',
+                style: TextStyle(fontSize: 16),
+              ),
+              SizedBox(height: 10),
+              Text(
+                'Please contact the administrator for more information.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                // Sign out the user
+                _auth.signOut();
+              },
+              child: Text(
+                'OK',
+                style: TextStyle(
+                  color: primaryColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   // Login with Email and Password
   Future<void> _loginWithEmail() async {
     if (!_formKey.currentState!.validate()) return;
@@ -144,31 +268,79 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) {
         // Check if admin or regular user based on email domain
         if (_isAdminEmail(email)) {
-          // Admin user - Save to admin_users collection
-          await _firestore.collection('admin_users').doc(userId).set({
-            'name': userName,
-            'email': email,
-            'loginTime': FieldValue.serverTimestamp(),
-            'lastLogin': DateTime.now().toString(),
-          }, SetOptions(merge: true));
+          // Admin user - Check approval status
 
-          // Save login time for 24-hour session
-          await _saveLoginTime();
+          // Check if there's an admin_users entry (old admin) OR admins entry (new admin)
+          DocumentSnapshot adminUserDoc = await _firestore.collection('admin_users').doc(userId).get();
+          DocumentSnapshot adminDoc = await _firestore.collection('admins').doc(userId).get();
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Admin Login Successful!'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
+          // If either exists, the admin is approved
+          if (adminUserDoc.exists || adminDoc.exists) {
+            // Admin is approved - allow login
 
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const AdmineMain(0, true),
-            ),
-          );
+            // Create/update admin_users entry for session tracking
+            await _firestore.collection('admin_users').doc(userId).set({
+              'name': userName,
+              'email': email,
+              'loginTime': FieldValue.serverTimestamp(),
+              'lastLogin': DateTime.now().toString(),
+            }, SetOptions(merge: true));
+
+            // If they have admin_users but not admins, create admins entry (migration)
+            if (!adminDoc.exists) {
+              await _firestore.collection('admins').doc(userId).set({
+                'name': userName,
+                'email': email,
+                'createdAt': FieldValue.serverTimestamp(),
+                'uid': userId,
+              });
+            }
+
+            // Save login time for 24-hour session
+            await _saveLoginTime();
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Admin Login Successful!'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
+              ),
+            );
+
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const AdmineMain(0, true),
+              ),
+            );
+          } else {
+            // Not approved - check request status
+            DocumentSnapshot requestDoc = await _firestore.collection('admin_requests').doc(userId).get();
+
+            // Sign out the user first
+            await _auth.signOut();
+
+            if (requestDoc.exists) {
+              final status = requestDoc.get('status') ?? 'pending';
+
+              if (status == 'pending') {
+                // Request is pending
+                _showAdminPendingDialog();
+              } else if (status == 'rejected') {
+                // Request was rejected
+                _showAdminRejectedDialog();
+              } else {
+                // Unknown status
+                _showAdminPendingDialog();
+              }
+            } else {
+              // No request found - shouldn't happen but handle it
+              _showAdminPendingDialog();
+            }
+
+            setState(() => _isLoading = false);
+            return;
+          }
         } else {
           // Regular user - Check if banned
           bool isBanned = await _isUserBanned(userId!);
