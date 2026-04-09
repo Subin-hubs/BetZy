@@ -8,7 +8,7 @@ class TopupService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Convert image to base64 string (NO Firebase Storage needed)
+  // Convert image to base64 string
   Future<String> convertImageToBase64(File file) async {
     try {
       final bytes = await file.readAsBytes();

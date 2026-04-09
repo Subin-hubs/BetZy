@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
+import 'Match History page.dart';
+
 class MorePage extends StatefulWidget {
   const MorePage({super.key});
 
@@ -51,7 +53,6 @@ class _MorePageState extends State<MorePage> {
     }
   }
 
-  // Edit Profile Dialog
   void _showEditProfileDialog() {
     final nameController = TextEditingController(
       text: userData?['name'] ?? currentUser?.displayName ?? '',
@@ -98,16 +99,12 @@ class _MorePageState extends State<MorePage> {
               }
 
               try {
-                // Update Firestore
                 await _firestore
                     .collection('users')
                     .doc(currentUser!.uid)
                     .update({'name': nameController.text.trim()});
 
-                // Update Firebase Auth displayName
                 await currentUser!.updateDisplayName(nameController.text.trim());
-
-                // Reload user data
                 await _loadUserData();
 
                 if (mounted) {
@@ -134,7 +131,6 @@ class _MorePageState extends State<MorePage> {
     );
   }
 
-  // Show Match History
   void _showMatchHistory() {
     Navigator.push(
       context,
@@ -146,7 +142,6 @@ class _MorePageState extends State<MorePage> {
     );
   }
 
-  // Show Coming Soon Dialog
   void _showComingSoonDialog(String feature) {
     showDialog(
       context: context,
@@ -258,7 +253,6 @@ class _MorePageState extends State<MorePage> {
           : SingleChildScrollView(
         child: Column(
           children: [
-            // Profile Header
             Container(
               width: double.infinity,
               decoration: BoxDecoration(
@@ -271,7 +265,6 @@ class _MorePageState extends State<MorePage> {
               child: Column(
                 children: [
                   const SizedBox(height: 20),
-                  // Avatar
                   Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
@@ -289,7 +282,6 @@ class _MorePageState extends State<MorePage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // User Name
                   Text(
                     userData?['name'] ??
                         currentUser?.displayName ??
@@ -301,7 +293,6 @@ class _MorePageState extends State<MorePage> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  // User Email
                   Text(
                     currentUser?.email ?? 'No email',
                     style: TextStyle(
@@ -313,15 +304,11 @@ class _MorePageState extends State<MorePage> {
                 ],
               ),
             ),
-
             const SizedBox(height: 20),
-
-            // Menu Items
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 children: [
-                  // Account Section
                   _buildSectionTitle("Account"),
                   _buildMenuCard([
                     _buildMenuItem(
@@ -349,10 +336,7 @@ class _MorePageState extends State<MorePage> {
                       ),
                     ),
                   ]),
-
                   const SizedBox(height: 20),
-
-                  // My Matches Section
                   _buildSectionTitle("My Activity"),
                   _buildMenuCard([
                     _buildMenuItem(
@@ -374,10 +358,7 @@ class _MorePageState extends State<MorePage> {
                       onTap: () => _showComingSoonDialog("Leaderboard"),
                     ),
                   ]),
-
                   const SizedBox(height: 20),
-
-                  // Settings Section
                   _buildSectionTitle("Support"),
                   _buildMenuCard([
                     _buildMenuItem(
@@ -400,10 +381,7 @@ class _MorePageState extends State<MorePage> {
                           _showComingSoonDialog("Privacy Policy"),
                     ),
                   ]),
-
                   const SizedBox(height: 20),
-
-                  // Logout Button
                   Container(
                     width: double.infinity,
                     margin: const EdgeInsets.symmetric(horizontal: 0),
@@ -429,10 +407,7 @@ class _MorePageState extends State<MorePage> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 30),
-
-                  // App Version
                   Text(
                     "Version 1.0.0",
                     style: TextStyle(
@@ -440,7 +415,6 @@ class _MorePageState extends State<MorePage> {
                       fontSize: 12,
                     ),
                   ),
-
                   const SizedBox(height: 20),
                 ],
               ),
@@ -563,215 +537,3 @@ class _MorePageState extends State<MorePage> {
   }
 }
 
-// Match History Page
-class MatchHistoryPage extends StatelessWidget {
-  final String userId;
-  final Color primaryColor = const Color(0xFF2962FF);
-  final Color accentColor = const Color(0xFFFF6B35);
-
-  const MatchHistoryPage({super.key, required this.userId});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      appBar: AppBar(
-        title: const Text(
-          "Match History",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-      ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('matches')
-            .where('createdBy.userId', isEqualTo: userId)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(
-              child: CircularProgressIndicator(color: primaryColor),
-            );
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.error_outline,
-                      size: 60, color: Colors.red.shade300),
-                  const SizedBox(height: 16),
-                  const Text("Error loading matches"),
-                ],
-              ),
-            );
-          }
-
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.history,
-                      size: 80, color: Colors.grey.shade300),
-                  const SizedBox(height: 16),
-                  Text(
-                    "No matches yet",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    "Create your first match to get started!",
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade500,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: snapshot.data!.docs.length,
-            itemBuilder: (context, index) {
-              var doc = snapshot.data!.docs[index];
-              var matchData = doc.data() as Map<String, dynamic>;
-
-              return _buildMatchHistoryCard(matchData);
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildMatchHistoryCard(Map<String, dynamic> matchData) {
-    String mode = matchData['mode'] ?? 'Unknown';
-    String teamSize = matchData['teamSize'] ?? 'N/A';
-    int points = matchData['points'] ?? 0;
-    String status = matchData['status'] ?? 'active';
-
-    Color statusColor = status == 'active'
-        ? Colors.green
-        : status == 'completed'
-        ? Colors.blue
-        : Colors.red;
-
-    IconData modeIcon = mode == "Clash Squad"
-        ? Icons.groups
-        : mode == "Lone Wolf"
-        ? Icons.person
-        : Icons.map;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.shade200,
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(modeIcon, color: primaryColor, size: 24),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      mode,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    if (teamSize != 'N/A')
-                      Text(
-                        teamSize,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: statusColor),
-                ),
-                child: Text(
-                  status.toUpperCase(),
-                  style: TextStyle(
-                    color: statusColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Divider(color: Colors.grey.shade200),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Icon(Icons.stars, color: accentColor, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                "$points Points",
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-              Icon(Icons.people, color: Colors.grey.shade600, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                "${matchData['participants']?.length ?? 0} Joined",
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
