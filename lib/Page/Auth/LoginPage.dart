@@ -7,6 +7,91 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../Admine/admin_navbar.dart';
 import '../Navbar_page.dart';
 
+// ─── Custom Exception ────────────────────────────────────────────────────────
+
+class DeactivatedAccountException implements Exception {
+  final String message;
+  const DeactivatedAccountException(this.message);
+
+  @override
+  String toString() => message;
+}
+
+// ─── Helpers (top-level) ─────────────────────────────────────────────────────
+
+Future<bool> checkDeactivatedAccount(User user) async {
+  final firestore = FirebaseFirestore.instance;
+  final auth = FirebaseAuth.instance;
+
+  try {
+    final doc = await firestore.collection('users').doc(user.uid).get();
+
+    if (!doc.exists) return true; // no data — let them in
+
+    final data = doc.data() as Map<String, dynamic>;
+    final isDeactivated = data['isDeactivated'] ?? false;
+
+    if (!isDeactivated) return true; // normal account — let them in
+
+    // Account is deactivated — check if 10-day window has passed
+    final Timestamp? scheduledDeletionAt = data['scheduledDeletionAt'];
+    final now = DateTime.now();
+
+    if (scheduledDeletionAt != null &&
+        now.isAfter(scheduledDeletionAt.toDate())) {
+      // 10 days passed: permanently delete everything
+      await _permanentlyDeleteAccount(user, firestore, auth);
+      return false; // block login (account no longer exists)
+    } else {
+      // Still within recovery window: block login
+      await auth.signOut();
+
+      final deletionDate = scheduledDeletionAt?.toDate();
+      final formattedDate = deletionDate != null
+          ? "${deletionDate.day}/${deletionDate.month}/${deletionDate.year}"
+          : "soon";
+
+      throw DeactivatedAccountException(
+        "Your account is deactivated. Data will be deleted on $formattedDate. "
+            "Contact support@yourapp.com to recover it.",
+      );
+    }
+  } catch (e) {
+    if (e is DeactivatedAccountException) rethrow;
+    return true; // On unexpected error, let them through
+  }
+}
+
+Future<void> _permanentlyDeleteAccount(
+    User user,
+    FirebaseFirestore firestore,
+    FirebaseAuth auth,
+    ) async {
+  final uid = user.uid;
+
+  try {
+    // 1. Delete settings sub-collection
+    final settingsSnap = await firestore
+        .collection('users')
+        .doc(uid)
+        .collection('settings')
+        .get();
+    for (final doc in settingsSnap.docs) {
+      await doc.reference.delete();
+    }
+
+    // 2. Delete main user document
+    await firestore.collection('users').doc(uid).delete();
+
+    // 3. Delete Firebase Auth account
+    await user.delete();
+  } catch (e) {
+    debugPrint('Error during permanent deletion: $e');
+  }
+}
+
+// ─── LoginPage ───────────────────────────────────────────────────────────────
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -50,7 +135,8 @@ class _LoginPageState extends State<LoginPage> {
   // Check if user is banned
   Future<bool> _isUserBanned(String uid) async {
     try {
-      DocumentSnapshot userDoc = await _firestore.collection('users').doc(uid).get();
+      final userDoc =
+      await _firestore.collection('users').doc(uid).get();
       if (userDoc.exists) {
         return userDoc.get('isBanned') ?? false;
       }
@@ -60,193 +146,200 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // Show banned dialog
+  // ── Dialogs ──────────────────────────────────────────────────────────────
+
   void _showBannedDialog() {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-          ),
-          title: Row(
-            children: [
-              Icon(Icons.block, color: Colors.red, size: 30),
-              SizedBox(width: 10),
-              Text(
-                'Account Banned',
-                style: TextStyle(
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Your account has been banned by the administrator.',
-                style: TextStyle(fontSize: 16),
-              ),
-              SizedBox(height: 10),
-              Text(
-                'Please contact the admin of this app for more information.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[700],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                // Sign out the banned user
-                _auth.signOut();
-              },
-              child: Text(
-                'OK',
-                style: TextStyle(
-                  color: primaryColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.block, color: Colors.red, size: 30),
+            const SizedBox(width: 10),
+            const Text(
+              'Account Banned',
+              style: TextStyle(
+                  color: Colors.red, fontWeight: FontWeight.bold),
             ),
           ],
-        );
-      },
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Your account has been banned by the administrator.',
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Please contact the admin of this app for more information.',
+              style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _auth.signOut();
+            },
+            child: Text(
+              'OK',
+              style: TextStyle(
+                  color: primaryColor, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  // Show admin pending approval dialog
   void _showAdminPendingDialog() {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-          ),
-          title: Row(
-            children: [
-              Icon(Icons.pending_actions, color: Colors.orange, size: 30),
-              SizedBox(width: 10),
-              Text(
-                'Approval Pending',
-                style: TextStyle(
-                  color: Colors.orange,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Your admin access request is still pending approval.',
-                style: TextStyle(fontSize: 16),
-              ),
-              SizedBox(height: 10),
-              Text(
-                'Please wait for an existing admin to approve your request. You will be notified once approved.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[700],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                // Sign out the user
-                _auth.signOut();
-              },
-              child: Text(
-                'OK',
-                style: TextStyle(
-                  color: primaryColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.pending_actions,
+                color: Colors.orange, size: 30),
+            const SizedBox(width: 10),
+            const Text(
+              'Approval Pending',
+              style: TextStyle(
+                  color: Colors.orange, fontWeight: FontWeight.bold),
             ),
           ],
-        );
-      },
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Your admin access request is still pending approval.',
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Please wait for an existing admin to approve your request. '
+                  'You will be notified once approved.',
+              style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _auth.signOut();
+            },
+            child: Text(
+              'OK',
+              style: TextStyle(
+                  color: primaryColor, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  // Show admin rejected dialog
   void _showAdminRejectedDialog() {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-          ),
-          title: Row(
-            children: [
-              Icon(Icons.cancel, color: Colors.red, size: 30),
-              SizedBox(width: 10),
-              Text(
-                'Request Rejected',
-                style: TextStyle(
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Your admin access request has been rejected.',
-                style: TextStyle(fontSize: 16),
-              ),
-              SizedBox(height: 10),
-              Text(
-                'Please contact the administrator for more information.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[700],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                // Sign out the user
-                _auth.signOut();
-              },
-              child: Text(
-                'OK',
-                style: TextStyle(
-                  color: primaryColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.cancel, color: Colors.red, size: 30),
+            const SizedBox(width: 10),
+            const Text(
+              'Request Rejected',
+              style: TextStyle(
+                  color: Colors.red, fontWeight: FontWeight.bold),
             ),
           ],
-        );
-      },
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Your admin access request has been rejected.',
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Please contact the administrator for more information.',
+              style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _auth.signOut();
+            },
+            child: Text(
+              'OK',
+              style: TextStyle(
+                  color: primaryColor, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  // Login with Email and Password
+  void _showDeactivatedDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.pause_circle_outline,
+                color: Colors.orange, size: 30),
+            const SizedBox(width: 10),
+            const Text(
+              'Account Deactivated',
+              style: TextStyle(
+                  color: Colors.orange, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(message, style: const TextStyle(fontSize: 15)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              'OK',
+              style: TextStyle(
+                  color: primaryColor, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Core Login Logic ──────────────────────────────────────────────────────
+
   Future<void> _loginWithEmail() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -256,115 +349,50 @@ class _LoginPageState extends State<LoginPage> {
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
 
-      // Authenticate with Firebase
-      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+      // 1. Authenticate with Firebase
+      final UserCredential userCredential =
+      await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      final userId = userCredential.user?.uid;
-      final userName = userCredential.user?.displayName ?? 'User';
+      final User user = userCredential.user!;
+      final String userId = user.uid;
+      final String userName = user.displayName ?? 'User';
 
-      if (mounted) {
-        // Check if admin or regular user based on email domain
-        if (_isAdminEmail(email)) {
-          // Admin user - Check approval status
+      if (!mounted) return;
 
-          // Check if there's an admin_users entry (old admin) OR admins entry (new admin)
-          DocumentSnapshot adminUserDoc = await _firestore.collection('admin_users').doc(userId).get();
-          DocumentSnapshot adminDoc = await _firestore.collection('admins').doc(userId).get();
+      // 2. Admin path
+      if (_isAdminEmail(email)) {
+        final adminUserDoc =
+        await _firestore.collection('admin_users').doc(userId).get();
+        final adminDoc =
+        await _firestore.collection('admins').doc(userId).get();
 
-          // If either exists, the admin is approved
-          if (adminUserDoc.exists || adminDoc.exists) {
-            // Admin is approved - allow login
+        if (adminUserDoc.exists || adminDoc.exists) {
+          // Approved admin
+          await _firestore.collection('admin_users').doc(userId).set({
+            'name': userName,
+            'email': email,
+            'loginTime': FieldValue.serverTimestamp(),
+            'lastLogin': DateTime.now().toString(),
+          }, SetOptions(merge: true));
 
-            // Create/update admin_users entry for session tracking
-            await _firestore.collection('admin_users').doc(userId).set({
+          if (!adminDoc.exists) {
+            await _firestore.collection('admins').doc(userId).set({
               'name': userName,
               'email': email,
-              'loginTime': FieldValue.serverTimestamp(),
-              'lastLogin': DateTime.now().toString(),
-            }, SetOptions(merge: true));
-
-            // If they have admin_users but not admins, create admins entry (migration)
-            if (!adminDoc.exists) {
-              await _firestore.collection('admins').doc(userId).set({
-                'name': userName,
-                'email': email,
-                'createdAt': FieldValue.serverTimestamp(),
-                'uid': userId,
-              });
-            }
-
-            // Save login time for 24-hour session
-            await _saveLoginTime();
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Admin Login Successful!'),
-                backgroundColor: Colors.green,
-                duration: Duration(seconds: 2),
-              ),
-            );
-
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const AdmineMain(0, true),
-              ),
-            );
-          } else {
-            // Not approved - check request status
-            DocumentSnapshot requestDoc = await _firestore.collection('admin_requests').doc(userId).get();
-
-            // Sign out the user first
-            await _auth.signOut();
-
-            if (requestDoc.exists) {
-              final status = requestDoc.get('status') ?? 'pending';
-
-              if (status == 'pending') {
-                // Request is pending
-                _showAdminPendingDialog();
-              } else if (status == 'rejected') {
-                // Request was rejected
-                _showAdminRejectedDialog();
-              } else {
-                // Unknown status
-                _showAdminPendingDialog();
-              }
-            } else {
-              // No request found - shouldn't happen but handle it
-              _showAdminPendingDialog();
-            }
-
-            setState(() => _isLoading = false);
-            return;
-          }
-        } else {
-          // Regular user - Check if banned
-          bool isBanned = await _isUserBanned(userId!);
-
-          if (isBanned) {
-            // User is banned - show dialog and sign out
-            await _auth.signOut();
-            _showBannedDialog();
-            setState(() => _isLoading = false);
-            return;
+              'createdAt': FieldValue.serverTimestamp(),
+              'uid': userId,
+            });
           }
 
-          // User not banned - proceed with login
-          // Update last login in users collection
-          await _firestore.collection('users').doc(userId).update({
-            'lastLogin': FieldValue.serverTimestamp(),
-          });
-
-          // Save login time for 24-hour session
           await _saveLoginTime();
 
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Login Successful! Session valid for 24 hours.'),
+              content: Text('Admin Login Successful!'),
               backgroundColor: Colors.green,
               duration: Duration(seconds: 2),
             ),
@@ -372,31 +400,117 @@ class _LoginPageState extends State<LoginPage> {
 
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const Mainpage(0, true)),
+            MaterialPageRoute(
+              builder: (_) => const AdmineMain(0, true),
+            ),
           );
+        } else {
+          // Not yet approved — check request
+          final requestDoc = await _firestore
+              .collection('admin_requests')
+              .doc(userId)
+              .get();
+
+          await _auth.signOut();
+
+          if (requestDoc.exists) {
+            final status = requestDoc.get('status') ?? 'pending';
+            if (status == 'rejected') {
+              _showAdminRejectedDialog();
+            } else {
+              _showAdminPendingDialog();
+            }
+          } else {
+            _showAdminPendingDialog();
+          }
+
+          setState(() => _isLoading = false);
+          return;
         }
+
+        // ── Regular user path ──────────────────────────────────────────
+      } else {
+        // 3. Check deactivated / scheduled for deletion
+        bool allowed;
+        try {
+          allowed = await checkDeactivatedAccount(user);
+        } on DeactivatedAccountException catch (e) {
+          if (mounted) _showDeactivatedDialog(e.message);
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        if (!allowed) {
+          // Account was past 10-day window and has been permanently deleted
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('This account no longer exists.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        // 4. Check if banned
+        final bool isBanned = await _isUserBanned(userId);
+        if (isBanned) {
+          await _auth.signOut();
+          if (mounted) _showBannedDialog();
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        // 5. All clear — update last login and proceed
+        await _firestore.collection('users').doc(userId).update({
+          'lastLogin': FieldValue.serverTimestamp(),
+        });
+
+        await _saveLoginTime();
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+            Text('Login Successful! Session valid for 24 hours.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const Mainpage(0, true),
+          ),
+        );
       }
     } on FirebaseAuthException catch (e) {
       String message = 'An error occurred';
 
-      if (e.code == 'user-not-found') {
-        message = 'No user found with this email.';
-      } else if (e.code == 'wrong-password') {
-        message = 'Wrong password provided.';
-      } else if (e.code == 'invalid-email') {
-        message = 'Invalid email address.';
-      } else if (e.code == 'user-disabled') {
-        message = 'This account has been disabled.';
-      } else if (e.code == 'invalid-credential') {
-        message = 'Invalid email or password.';
+      switch (e.code) {
+        case 'user-not-found':
+          message = 'No user found with this email.';
+          break;
+        case 'wrong-password':
+          message = 'Wrong password provided.';
+          break;
+        case 'invalid-email':
+          message = 'Invalid email address.';
+          break;
+        case 'user-disabled':
+          message = 'This account has been disabled.';
+          break;
+        case 'invalid-credential':
+          message = 'Invalid email or password.';
+          break;
       }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text(message), backgroundColor: Colors.red),
         );
       }
     } catch (e) {
@@ -409,9 +523,7 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -429,13 +541,13 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       await _auth.sendPasswordResetEmail(
-        email: _emailController.text.trim(),
-      );
+          email: _emailController.text.trim());
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Password reset email sent! Check your inbox.'),
+            content:
+            Text('Password reset email sent! Check your inbox.'),
             backgroundColor: Colors.green,
           ),
         );
@@ -452,6 +564,8 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  // ── Build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -461,14 +575,12 @@ class _LoginPageState extends State<LoginPage> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: size.width * 0.07,
-            ),
+            padding: EdgeInsets.symmetric(horizontal: size.width * 0.07),
             child: Form(
               key: _formKey,
               child: Column(
                 children: [
-                  // LOGO with Animation
+                  // Logo
                   Hero(
                     tag: 'logo',
                     child: SizedBox(
@@ -502,9 +614,7 @@ class _LoginPageState extends State<LoginPage> {
                   Text(
                     "Login to continue",
                     style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 15,
-                    ),
+                        color: Colors.grey.shade600, fontSize: 15),
                   ),
 
                   SizedBox(height: size.height * 0.04),
@@ -562,30 +672,23 @@ class _LoginPageState extends State<LoginPage> {
 
                   SizedBox(height: size.height * 0.015),
 
-                  // LOGIN BUTTON
+                  // Login Button
                   SizedBox(
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton(
+                      onPressed: _isLoading ? null : _loginWithEmail,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryColor,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        elevation: 2,
                       ),
-                      onPressed: _isLoading ? null : _loginWithEmail,
                       child: _isLoading
-                          ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
+                          ? const CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2)
                           : const Text(
-                        "Log In",
+                        "Login",
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -606,14 +709,12 @@ class _LoginPageState extends State<LoginPage> {
                         style: TextStyle(color: Colors.grey.shade600),
                       ),
                       GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const SignupPage(),
-                            ),
-                          );
-                        },
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SignupPage(),
+                          ),
+                        ),
                         child: Text(
                           "Sign Up",
                           style: TextStyle(
@@ -633,7 +734,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // TEXT INPUT FIELD
+  // Text Input Field
   Widget buildInput(
       String hint,
       IconData icon, {
@@ -663,8 +764,8 @@ class _LoginPageState extends State<LoginPage> {
                   : Icons.visibility_off,
               color: Colors.grey.shade600,
             ),
-            onPressed: () =>
-                setState(() => _isPasswordVisible = !_isPasswordVisible),
+            onPressed: () => setState(
+                    () => _isPasswordVisible = !_isPasswordVisible),
           )
               : null,
           border: InputBorder.none,

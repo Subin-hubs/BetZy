@@ -57,39 +57,6 @@ class _AdminHomePageState extends State<AdminHomePage> with SingleTickerProvider
             ),
           ],
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1F2937),
-        elevation: 0,
-        actions: [
-          Stack(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('No new notifications')),
-                  );
-                },
-              ),
-              Positioned(
-                right: 12,
-                top: 12,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Text(
-                    '3',
-                    style: TextStyle(color: Colors.white, fontSize: 10),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 8),
-        ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -116,17 +83,6 @@ class _AdminHomePageState extends State<AdminHomePage> with SingleTickerProvider
                 ),
                 const SizedBox(height: 12),
                 _buildStatisticsGrid(),
-                const SizedBox(height: 24),
-                const Text(
-                  "Quick Actions",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1F2937),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _buildQuickActions(),
                 const SizedBox(height: 24),
                 const Text(
                   "Recent Matches",
@@ -372,63 +328,6 @@ class _AdminHomePageState extends State<AdminHomePage> with SingleTickerProvider
     );
   }
 
-  Widget _buildQuickActions() {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 3,
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 1,
-      children: [
-        _buildActionButton(
-          title: "Users",
-          icon: Icons.people_rounded,
-          color: const Color(0xFF3B82F6),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const AdminUsersPage()),
-            );
-          },
-        ),
-        _buildActionButton(
-          title: "Matches",
-          icon: Icons.sports_esports_rounded,
-          color: const Color(0xFF10B981),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const AdminMatchesPage()),
-            );
-          },
-        ),
-        _buildActionButton(
-          title: "Top-up",
-          icon: Icons.payments_rounded,
-          color: const Color(0xFF8B5CF6),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const AdminTopupPage()),
-            );
-          },
-        ),
-
-        _buildActionButton(
-          title: "More",
-          icon: Icons.more_horiz_rounded,
-          color: const Color(0xFFEC4899),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const SettingsMore()),
-            );
-          },
-        ),
-      ],
-    );
-  }
 
   void _showMoreOptions(BuildContext context) {
     showModalBottomSheet(
